@@ -18,11 +18,26 @@ framework:
 
     http_client:
         max_host_connections: 5
-        scoped_clients:
-            flickr_rest_client:
-                base_uri: 'https://www.flickr.com/services/rest'
-                query:
-                    api_key: '%env(FLICKR_API_KEY)%'
-                    format: json
-                    nojsoncallback: 1
-
+#        scoped_clients:
+#            flickr_api_client:
+#                base_uri: 'https://www.flickr.com/services/rest'
+#                headers:
+#                    'User-Agent': 'FlickrDumper/v1.0 (https://github.com/kiler129/flickr-dumper)'
+#                query:
+#                    api_key: '%env(FLICKR_API_KEY)%'
+#                    format: json
+#                    nojsoncallback: 1
+#                proxy: '%app.flickr_api_proxy%'
+#
+#            flickr_download_client:
+#                base_uri: 'https://live.staticflickr.com/'
+#                headers:
+#                      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0'
+#                      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
+#                      'Accept-Language': 'en-US,en;q=0.5'
+#                      'Upgrade-Insecure-Requests': '1'
+#                      'Sec-Fetch-Dest': 'document'
+#                      'Sec-Fetch-Mode': 'navigate'
+#                      'Sec-Fetch-Site': 'none'
+#                      'Sec-Fetch-User': '?1'
+#                proxy: '%app.flickr_download_proxy%'

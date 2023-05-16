@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Flickr;
 
+/** @deprecated use FlickrApiCLient->getTest() */
 class Test
 {
     private BaseApiClient $baseClient;
@@ -22,5 +23,10 @@ class Test
     public function echoTest(): array
     {
         return $this->baseClient->callMethod('flickr.test.echo');
+    }
+
+    public function nullTest(): array
+    {
+        return $this->baseClient->callMethod('flickr.test.null');
     }
 }

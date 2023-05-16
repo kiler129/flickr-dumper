@@ -1,14 +1,14 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Command;
 
-use App\Exception\Api\ApiCallException;
+use App\Factory\HttpClientFactory;
+use App\Flickr\BaseApiClient;
 use App\Flickr\PhotoSets;
-use App\Flickr\Test;
 use App\Flickr\Urls;
-use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoSize;
 use App\Util\NameGenerator;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
@@ -20,63 +20,62 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-class DownloadUserPhotosetsCommand extends Command
+#[AsCommand(
+    name: 'flickr:download-user-photosets',
+    aliases: ['flickr:downlod-user-albums'],
+    description: 'Downloads all user photosets (aka. albums)'
+)]
+class DownloadUserPhotosetsCommand extends BaseDownloadCommand
 {
-    protected static  $defaultName = 'flickr:download-user-photosets';
-    protected static  $defaultDescription = 'Downloads all user photosets/album';
+    private Command $dlPhotosetCmd;
 
-    private Urls                $flickrUrls;
-    private PhotoSets           $flickrAlbums;
-    private HttpClientInterface $httpClient;
-    private Filesystem          $fs;
-    private SymfonyStyle        $io;
-    private NameGenerator       $nameGenerator;
-
-    public function __construct(Urls $flickrUrls, PhotoSets $flickrAlbums, HttpClientInterface $httpClient, Filesystem $fs, NameGenerator $nameGenerator)
-    {
-        $this->flickrUrls = $flickrUrls;
-        $this->flickrAlbums = $flickrAlbums;
-        $this->httpClient = $httpClient;
-        $this->fs = $fs;
-        $this->nameGenerator = $nameGenerator;
-
-        parent::__construct();
+    public function __construct(
+        HttpClientFactory $clientFactory,
+        Filesystem $fs,
+        BaseApiClient $apiClient,
+        NameGenerator $nameGenerator,
+        private Urls $flickrUrls,
+        private PhotoSets $flickrAlbums,
+    ) {
+        parent::__construct($clientFactory, $fs, $apiClient, $nameGenerator);
     }
 
     protected function configure()
     {
         $this
-            ->setDescription(self::$defaultDescription)
-            ->addOption('force-download-files', 'f', InputOption::VALUE_NONE, 'Overwrite existing files even if they exist')
-            ->addOption('check-all', 'c', InputOption::VALUE_NONE, 'By default the whole album is skipped if its directory exist, this option forces re-listing of all albums')
-            ->addArgument('user', InputArgument::REQUIRED, 'URL to user resource (profile/photo/etc.) or NSID')
-            ->addArgument(
-                'destination',
-                InputArgument::OPTIONAL,
-                'Directory to save photosets to (by default it will create one)',
-            )
-        ;
+             ->addOption(
+                 'check-all',
+                 'c',
+                 InputOption::VALUE_NONE,
+                 'By default the whole album is skipped if its directory exist, this option forces re-listing of ' .
+                 'all albums (except blacklisted)'
+             )
+             ->addArgument('user', InputArgument::REQUIRED, 'URL to user resource (profile/photo/etc.) or NSID');
+
+        parent::configure();
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $this->io = new SymfonyStyle($input, $output);
+        $parentExit = parent::execute($input, $output);
+        if ($parentExit !== Command::SUCCESS) {
+            return $parentExit;
+        }
 
         $user = $input->getArgument('user');
-        $userIsUrl = (\preg_match('/^https?:\/\//', $user) === 1);
+        $userIsUrl = (preg_match('/^https?:\/\//', $user) === 1);
         $nsid = $userIsUrl ? $this->flickrUrls->lookupUserId($user) : $user;
 
         $targetDir = $input->getArgument('destination');
         if (empty($targetDir)) {
-            $targetDir = $nsid . '-photosets';
+            $targetDir = $this->getUserPhotosetsDir($nsid);
         }
         $this->fs->mkdir($targetDir);
-        $forceDownloadFiles = (bool)$input->getOption('force-download-files');
         $forceCheckAllSets = (bool)$input->getOption('check-all');
 
         $existingSets = $this->findExisting($targetDir);
         $photosets = $this->flickrAlbums->iterateListFlat($nsid);
-        $downloadPhotosetCommand = $this->getApplication()->find(DownloadPhotosetCommand::getDefaultName());
+
         $setsCounter = 0;
         $this->io->info('Getting albums...');
         foreach ($photosets as $set) {
@@ -84,31 +83,33 @@ class DownloadUserPhotosetsCommand extends Command
 
             $setId = $set['id'];
             if (isset($existingSets[$setId])) {
-                if (!$forceCheckAllSets) {
+                //TODO: this is a hack - it should be a normal list and not magic folders
+                if (\preg_match(NameGenerator::PHOTOSET_BLACKLIST_REGEX, $existingSets[$setId]) === 1) {
+                    $this->io->info("Skipping album ID=$setId - explicitly blacklisted");
+                    continue;
+                }
+
+                if(!$this->fs->exists($existingSets[$setId] . '/+complete-album+')) {
+                    $this->io->warning("Album ID=$setId exists but it's incomplete - relisting");
+                } elseif (!$forceCheckAllSets) {
                     $this->io->info("Skipping album ID=$setId - already exists");
                     continue;
                 }
 
                 $setDir = $existingSets[$setId];
             } else {
-                $setDir = $targetDir . '/' . $this->nameGenerator->getDirectoryNameForPhotoset($set);
+                $setDir = $this->getPhotosetStableDir($set);
             }
 
-            $args = new ArrayInput(
-                [
-                    '--user-id' => $nsid,
-                    '--force-download' => $forceDownloadFiles ? '1' : '0',
-                    'photoset' => $setId,
-                    'destination' => $setDir
-                ]
-            );
 
-            $return = $downloadPhotosetCommand->run($args, $output);
-            if ($return === Command::SUCCESS) {
+            if ($this->downloadPhotoset($input, $output, $nsid, $setId, $setDir)) {
                 $this->io->success("Successfully downloaded album ID=$setId");
+                $this->fs->touch($setDir . '/+complete-album+');
             } else {
                 $this->io->error("An error occurred while downloading album ID=$setId");
             }
+
+            $this->ensureClientsIdentities(); //reset both download client and API client if needed
         }
 
         $this->io->success("Finished processing all $setsCounter albums");
@@ -116,12 +117,47 @@ class DownloadUserPhotosetsCommand extends Command
         return Command::SUCCESS;
     }
 
+    private function downloadPhotoset(
+        InputInterface $input,
+        OutputInterface $output,
+        string $userNSID,
+        string $setId,
+        string $destination
+    ): bool
+    {
+        $this->dlPhotosetCmd ??= $this->getApplication()
+                                      ->find(\explode('|', LegacyDownloadPhotosetCommand::getDefaultName(), 2)[0]);
+
+        $args = [
+            '--user-id' => $userNSID,
+            '--force-download' => (string)(int)$input->getOption('force-download'),
+            '--randomize-identity' => (string)(int)$input->getOption('randomize-identity'),
+            '--randomize-client' => (string)(int)$input->getOption('randomize-client'),
+            '--save-metadata' => true,
+            'photoset' => $setId,
+            'destination' => $destination,
+        ];
+        dump($args);
+        dump('-----------------------------------------------------------------');
+
+
+        try {
+            return $this->dlPhotosetCmd->run(new ArrayInput($args), $output) === Command::SUCCESS;
+        } catch (\Throwable $t) {
+            $this->io->error(\sprintf('The %s command crashed!', $this->dlPhotosetCmd::class));
+            return false;
+        }
+    }
+
     private function findExisting(string $targetDir): array
     {
         $existing = [];
         $finder = new Finder();
 
-        foreach ($finder->in($targetDir)->directories()->depth(0) as $dir) {
+        foreach ($finder->in($targetDir)
+                        ->directories()
+                        ->depth(0) as $dir
+        ) {
             if (\preg_match(NameGenerator::PHOTOSET_DIR_ID_EXTRACT_REGEX, $dir->getFilename(), $matches) !== 1) {
                 continue;
             }

@@ -6,6 +6,8 @@ namespace App\Util;
 class NameGenerator
 {
     public const PHOTOSET_DIR_ID_EXTRACT_REGEX = '/#(.*)#/';
+    public const PHOTOSET_BLACKLIST_REGEX = '/\/-#(.*)#$/';
+
 
     public function getDirectoryNameForPhotoset(array $photoset): string
     {
@@ -22,5 +24,4 @@ class NameGenerator
 
         return \sprintf('%s (#%s#)', $title, $photosetId);
     }
-
 }

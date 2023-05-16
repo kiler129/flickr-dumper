@@ -4,6 +4,16 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices/configuration.html#application-related-configuration
 parameters:
+    env(FLICKR_API_PROXY): ~
+    env(FLICKR_DOWNLOAD_PROXY): ~
+
+    app.storage_root: '%env(STORAGE_LOCATION)%'
+    app.flickr_api_keys: '%env(csv:default::FLICKR_API_KEYS)%'
+    app.flickr_proxies: '%env(csv:default::FLICKR_PROXIES)%'
+
+    app.flickr_api_proxy: '%env(string:FLICKR_API_PROXY)%' # deprecated
+    app.flickr_download_proxy: '%env(string:FLICKR_DOWNLOAD_PROXY)%' # deprecated
+
 
 services:
     # default configuration for services in *this* file
@@ -11,8 +21,12 @@ services:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
 
-    # makes classes in src/ available to be used as services
-    # this creates a service per class whose id is the fully-qualified class name
+        bind:
+            $flickrApiProxy: '%app.flickr_api_proxy%'
+            $flickrDownloadProxy: '%app.flickr_download_proxy%'
+            $flickrApiHttpClient: '@app.flickr_api_httpclient'
+            $flickrDownloadHttpClient: '@app.flickr_download_httpclient'
+
     App\:
         resource: '../src/'
         exclude:
@@ -27,5 +41,53 @@ services:
         resource: '../src/Controller/'
         tags: ['controller.service_arguments']
 
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
+    App\Command\SyncCollectionCommand:
+        arguments:
+            $syncCollection: !service_closure '@App\UseCase\SyncCollection'
+
+    # usecase has state for options
+    App\UseCase\SyncCollection:
+        shared: false
+
+    # replaced by ApiClientConfigFactory logic
+    App\Flickr\ApiKeyProvider:
+        deprecated:
+            package: 'kiler129/flickr-sync'
+            version: '0.1'
+            message: '%service_id%: Use ApiClientConfigFactory mechanism'
+        arguments:
+            $flickrApiKeys: '%app.flickr_api_keys%'
+
+    App\Factory\HttpClientConfigFactory:
+        arguments:
+            $proxies: '%app.flickr_proxies%'
+
+    App\Flickr\Factory\ApiClientConfigFactory:
+        arguments:
+            $apiKeys: '%app.flickr_api_keys%'
+
+    App\Filesystem\StorageProvider:
+        arguments:
+            $storageRoot: '%app.storage_root%'
+
+    App\Flickr\Client\FlickrApiClient:
+        arguments:
+            $config: !service
+                class: App\Flickr\Client\ApiClientConfig
+                factory: ['@App\Flickr\Factory\ApiClientConfigFactory', 'getWithCommonClient']
+
+    app.flickr_api_httpclient:
+        deprecated:
+            package: 'kiler129/flickr-sync'
+            version: '0.1'
+            message: '%service_id%: Use FlickrApiClient directly'
+        class: Symfony\Contracts\HttpClient\HttpClientInterface
+        factory:  ['@App\Factory\HttpClientFactory', 'createApiHttpClient']
+
+    app.flickr_download_httpclient:
+        deprecated:
+            package: 'kiler129/flickr-sync'
+            version: '0.1'
+            message: '%service_id%: Use batch downlaoder service (tbd) instead'
+        class: Symfony\Contracts\HttpClient\HttpClientInterface
+        factory:  ['@App\Factory\HttpClientFactory', 'createDownloadHttpClient']

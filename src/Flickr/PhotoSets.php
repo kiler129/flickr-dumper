@@ -3,12 +3,11 @@ declare(strict_types=1);
 
 namespace App\Flickr;
 
-use App\Exception\Api\ApiCallException;
 use App\Exception\Api\BadApiMethodCallException;
 use App\Exception\Api\UnexpectedResponseException;
+use App\Flickr\ClientEndpoint\ApiEndpointHelper;
 use App\Struct\MediaType;
 use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoSize;
 
 /**
  * Photosets aka albums
@@ -17,7 +16,7 @@ use App\Struct\PhotoSize;
  */
 class PhotoSets
 {
-    use ApiHelpersTrait;
+    use ApiEndpointHelper;
 
     /**
      * As documented on https://www.flickr.com/services/api/flickr.photosets.getList.html
@@ -32,6 +31,32 @@ class PhotoSets
         $this->baseClient = $baseClient;
     }
 
+    public function iterateListFlat(string $userId, int $perPage = self::MAX_PER_PAGE): iterable
+    {
+        $page = 1;
+        $totalPages = null;
+
+        do {
+            $rsp = $this->getList($userId, $page, $perPage);
+            if ($totalPages === null) {
+                if (!isset($rsp['pages'])) {
+                    throw UnexpectedResponseException::create('API did not return number of pages', $rsp);
+                }
+
+                $totalPages = (int)$rsp['pages'];
+            }
+
+            if (!isset($rsp['photoset'])) {
+                throw UnexpectedResponseException::create(
+                    \sprintf('API did not return any sets for %d page', $page),
+                    $rsp
+                );
+            }
+
+            yield from $rsp['photoset'];
+        } while (++$page <= $totalPages);
+    }
+
     public function getList(
         string $userId,
         int $page = 1,
@@ -39,8 +64,7 @@ class PhotoSets
         array $primaryPhotoExtras = [],
         array $photoIds = [],
         array $sortGroups = [],
-    ): array
-    {
+    ): array {
         $params = [
             'user_id' => $userId,
             'per_page' => $perPage,
@@ -51,7 +75,9 @@ class PhotoSets
 
         if (!empty($primaryPhotoExtras)) {
             if (\count($primaryPhotoExtras) !== \count(\array_intersect($primaryPhotoExtras, PhotoExtraFields::ALL))) {
-                throw new BadApiMethodCallException('Invalid primaryPhotoExtras value detected'); //TODO add which were wrong
+                throw new BadApiMethodCallException(
+                    'Invalid primaryPhotoExtras value detected'
+                ); //TODO add which were wrong
             }
 
             $params['primary_photo_extras'] = \implode(',', $primaryPhotoExtras);
@@ -73,13 +99,17 @@ class PhotoSets
         return $rsp['photosets'];
     }
 
-    public function iterateListFlat(string $userId, int $perPage = self::MAX_PER_PAGE): iterable
-    {
+    public function iteratePhotosFlat(
+        string $userId,
+        string $photosetId,
+        int $perPage = self::MAX_PER_PAGE,
+        array $extras = []
+    ): iterable {
         $page = 1;
         $totalPages = null;
 
         do {
-            $rsp = $this->getList($userId, $page, $perPage);
+            $rsp = $this->getPhotos($userId, $photosetId, $page, $perPage, $extras);
             if ($totalPages === null) {
                 if (!isset($rsp['pages'])) {
                     throw UnexpectedResponseException::create('API did not return number of pages', $rsp);
@@ -88,16 +118,26 @@ class PhotoSets
                 $totalPages = (int)$rsp['pages'];
             }
 
-            if (!isset($rsp['photoset'])) {
-                throw UnexpectedResponseException::create(\sprintf('API did not return any sets for %d page', $page), $rsp);
+            if (!isset($rsp['photo'])) {
+                throw UnexpectedResponseException::create(
+                    \sprintf('API did not return any photos for %d page', $page),
+                    $rsp
+                );
             }
 
-            yield from $rsp['photoset'];
-        } while(++$page <= $totalPages);
+            yield from $rsp['photo'];
+        } while (++$page <= $totalPages);
     }
 
-    public function getPhotos(string $userId, string $photosetId, int $page = 1, int $perPage = self::MAX_PER_PAGE, array $extras = [], ?int $privacyFilter = null, ?string $mediaType = null): array
-    {
+    public function getPhotos(
+        string $userId,
+        string $photosetId,
+        int $page = 1,
+        int $perPage = self::MAX_PER_PAGE,
+        array $extras = [],
+        ?int $privacyFilter = null,
+        ?string $mediaType = null
+    ): array {
         $params = [
             'user_id' => $userId,
             'photoset_id' => $photosetId,
@@ -106,14 +146,7 @@ class PhotoSets
         ];
 
         $this->validatePaginationValues($page, $perPage);
-
-        if (!empty($extras)) {
-            if (\count($extras) !== \count(\array_intersect($extras, PhotoExtraFields::ALL))) {
-                throw new BadApiMethodCallException('Invalid extras value detected'); //TODO add which were wrong
-            }
-
-            $params['extras'] = \implode(',', $extras);
-        }
+        $this->normalizeExtrasToParams($params, $extras);
 
         if ($privacyFilter !== null) {
             $params['privacy_filter'] = $privacyFilter;
@@ -135,26 +168,11 @@ class PhotoSets
         return $rsp['photoset'];
     }
 
-    public function iteratePhotosFlat(string $userId, string $photosetId, int $perPage = self::MAX_PER_PAGE, array $extras = []): iterable
+    public function getInfo(string $userId, string $photosetId): array
     {
-        $page = 1;
-        $totalPages = null;
-
-        do {
-            $rsp = $this->getPhotos($userId, $photosetId, $page, $perPage, $extras);
-            if ($totalPages === null) {
-                if (!isset($rsp['pages'])) {
-                    throw UnexpectedResponseException::create('API did not return number of pages', $rsp);
-                }
-
-                $totalPages = (int)$rsp['pages'];
-            }
-
-            if (!isset($rsp['photo'])) {
-                throw UnexpectedResponseException::create(\sprintf('API did not return any photos for %d page', $page), $rsp);
-            }
-
-            yield from $rsp['photo'];
-        } while(++$page <= $totalPages);
+        return $this->baseClient->fetchResult('flickr.photosets.getInfo', 'photoset', [
+            'user_id' => $userId,
+            'photoset_id' => $photosetId,
+        ]);
     }
 }

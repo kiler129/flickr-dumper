@@ -3,9 +3,7 @@ declare(strict_types=1);
 
 namespace App\Flickr;
 
-use App\Exception\Api\ApiCallException;
 use App\Exception\Api\BadApiMethodCallException;
-use App\Exception\Api\UnexpectedResponseException;
 use App\Struct\PhotoExtraFields;
 use App\Struct\PhotoSize;
 
@@ -58,10 +56,11 @@ class Galleries
         ?string $coverPhotosSize = null,
         ?int $coverPhotosLimit = null,
         ?int $shortCoverPhotoLimit = null
-    ): array
-    {
+    ): array {
         if ($perPage < 1 || $perPage > self::MAX_PER_PAGE) {
-            throw new BadApiMethodCallException(\sprintf('Per page must be between 1 and %d (got %d)', self::MAX_PER_PAGE, $perPage));
+            throw new BadApiMethodCallException(
+                \sprintf('Per page must be between 1 and %d (got %d)', self::MAX_PER_PAGE, $perPage)
+            );
         }
 
         if ($page < 1) {

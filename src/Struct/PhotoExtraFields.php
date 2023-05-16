@@ -3,54 +3,56 @@ declare(strict_types=1);
 
 namespace App\Struct;
 
-final class PhotoExtraFields
+/**
+ * When adding new ones also see PhotoMetadata [deprecated?]
+ */
+enum PhotoExtraFields: string
 {
-    public const LICENSE         = 'license';
-    public const DATE_UPLOAD     = 'date_upload';
-    public const DATE_TAKEN      = 'date_taken';
-    public const OWNER_NAME      = 'owner_name';
-    public const ICON_SERVER     = 'icon_server';
-    public const ORIGINAL_FORMAT = 'original_format';
-    public const LAST_UPDATE     = 'last_update';
-    public const GEO             = 'geo';
-    public const TAGS            = 'tags';
-    public const MACHINE_TAGS    = 'machine_tags';
-    public const ORG_DIMENSIONS  = 'o_dims';
-    public const VIEWS           = 'views';
-    public const MEDIA           = 'media';
-    public const PATH_ALIAS      = 'path_alias';
-    public const URL_SQ          = 'url_sq';
-    public const URL_THUMB_100   = 'url_t';
-    public const URL_THUMB_75    = 'url_s';
-    public const URL_THUMB_240   = 'url_m';
-    public const URL_ORIGINAL    = 'url_o';
+    case DESCRIPTION     = 'description'; //only valid on some endpoints but not others (?)
+    case LICENSE         = 'license';
+    case DATE_UPLOAD     = 'date_upload';
+    case DATE_TAKEN      = 'date_taken';
+    case OWNER_NAME      = 'owner_name';
+    case ICON_SERVER     = 'icon_server';
+    case ORIGINAL_FORMAT = 'original_format';
+    case LAST_UPDATE     = 'last_update';
+    case GEO             = 'geo';
+    case TAGS            = 'tags';
+    case MACHINE_TAGS    = 'machine_tags';
+    case ORG_DIMENSIONS  = 'o_dims';
+    case VIEWS           = 'views';
+    case MEDIA           = 'media';
+    case PATH_ALIAS      = 'path_alias';
 
-    public const SIZE_URL_MAP = [
-        PhotoSize::THUMB_75 => self::URL_THUMB_75,
-        PhotoSize::THUMB_100 => self::URL_THUMB_100,
-        PhotoSize::SMALL_240 => self::URL_THUMB_240,
-        PhotoSize::ORIGINAL => self::URL_ORIGINAL
-    ];
 
-    public const ALL = [
-        self::LICENSE,
-        self::DATE_UPLOAD,
-        self::DATE_TAKEN,
-        self::OWNER_NAME,
-        self::ICON_SERVER,
-        self::ORIGINAL_FORMAT,
-        self::LAST_UPDATE,
-        self::GEO,
-        self::TAGS,
-        self::MACHINE_TAGS,
-        self::ORG_DIMENSIONS,
-        self::VIEWS,
-        self::MEDIA,
-        self::PATH_ALIAS,
-        self::URL_SQ,
-        self::URL_THUMB_100,
-        self::URL_THUMB_75,
-        self::URL_THUMB_240,
-        self::URL_ORIGINAL,
-    ];
+    //This list should mimic PhotoSize EXACTLY but with "url_" prefix. Some of these are undocumented.
+    case URL_SQUARE_75      = 'url_sq';
+    case URL_THUMB_75       = 'url_s';
+    case URL_THUMB_100      = 'url_t';
+    case URL_THUMB_150      = 'url_q';
+    case URL_SMALL_240      = 'url_m';
+    case URL_SMALL_320      = 'url_n';
+    case URL_SMALL_400      = 'url_w';
+    case URL_MEDIUM_500     = 'url_';
+    case URL_MEDIUM_640     = 'url_z';
+    case URL_MEDIUM_800     = 'url_c';
+    case URL_LARGE_1024     = 'url_b';
+    case URL_LARGE_1600     = 'url_h';
+    case URL_LARGE_2048     = 'url_k'; //undocumented https://www.flickr.com/groups/51035612836@N01/discuss/72157636063789543/72157644356066041
+    case URL_XLARGE_3K      = 'url_3k';
+    case URL_XLARGE_4K      = 'url_4k';
+    case URL_XLARGE_4K_2to1 = 'url_f';
+    case URL_XLARGE_5K      = 'url_5k';
+    case URL_XLARGE_6K      = 'url_6k';
+    case URL_ORIGINAL       = 'url_o';
+
+    static public function casesSizes(): array
+    {
+        $ret = [];
+        foreach (PhotoSize::cases() as $case) {
+            $ret[] = self::from('url_' . $case->value);
+        }
+
+        return $ret;
+    }
 }
