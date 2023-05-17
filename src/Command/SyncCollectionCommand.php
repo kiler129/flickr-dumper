@@ -11,8 +11,9 @@ use App\Flickr\Struct\Identity\UserFavesIdentity;
 use App\Flickr\Struct\Identity\UserPhotostreamIdentity;
 use App\Flickr\Url\UrlParser;
 use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoMetadata;
+use App\Struct\PhotoDto;
 use App\UseCase\SyncCollection;
+use App\UseCase\SyncPhotoToDisk;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -50,10 +51,12 @@ class SyncCollectionCommand extends Command
 
     /**
      * @param callable(): SyncCollection $syncCollection
+     * @param callable(): SyncPhotoToDisk $syncPhotoToDisk
      */
     public function __construct(
         private UrlParser $urlParser,
         private \Closure $syncCollection,
+        private \Closure $syncPhotoToDisk,
     ) {
         parent::__construct();
     }
@@ -107,14 +110,14 @@ class SyncCollectionCommand extends Command
             return Command::FAILURE;
         }
 
-        $uc = ($this->syncCollection)(); //this will always get a new instance
-        $uc->syncCompleted = !$input->getOption('ignore-completed');
-        $uc->trustUpdateTimestamps = !$input->getOption('distrust-timestamps');
-        $uc->trustPhotoRecords = !$input->getOption('repair-files');
+        $syncUC = ($this->syncCollection)(); //this will always get a new instance
+        $syncUC->syncCompleted = !$input->getOption('ignore-completed');
+        $syncUC->trustUpdateTimestamps = !$input->getOption('distrust-timestamps');
 
-        $uc->syncCollection($identity);
+        $dlUC = ($this->syncPhotoToDisk)(); //this will always get a new instance
+        $dlUC->trustPhotoRecords = !$input->getOption('repair-files');
 
-        return Command::SUCCESS;
+        return $syncUC->syncCollection($identity, $dlUC) ? Command::SUCCESS : Command::FAILURE;
     }
 
     protected function __OLD_execute(InputInterface $input, OutputInterface $output): int
@@ -268,7 +271,7 @@ class SyncCollectionCommand extends Command
 
     private function getLargestSizeUrl(array $photo): string
     {
-        $sizes = PhotoMetadata::fromApiResponse($photo)->getSortedSizes();
+        $sizes = PhotoDto::fromApiResponse($photo)->getSortedSizes();
         $largestKey = \array_key_last($sizes);
 
         return $sizes[$largestKey]['url'];

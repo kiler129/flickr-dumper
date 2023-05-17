@@ -44,9 +44,14 @@ services:
     App\Command\SyncCollectionCommand:
         arguments:
             $syncCollection: !service_closure '@App\UseCase\SyncCollection'
+            $syncPhotoToDisk: !service_closure '@App\UseCase\SyncPhotoToDisk'
 
     # usecase has state for options
     App\UseCase\SyncCollection:
+        shared: false
+
+    # usecase has state for options
+    App\UseCase\SyncPhotoToDisk:
         shared: false
 
     # replaced by ApiClientConfigFactory logic

@@ -9,7 +9,10 @@ use App\Flickr\ClientEndpoint\PandaEndpoint;
 use App\Flickr\ClientEndpoint\PhotosetsEndpoint;
 use App\Flickr\ClientEndpoint\TestEndpoint;
 use App\Flickr\ClientEndpoint\UrlsEndpoint;
-use App\Flickr\Struct\ApiResponse;use Symfony\Contracts\HttpClient\HttpClientInterface;
+use App\Flickr\Struct\ApiResponse;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class FlickrApiClient
 {
@@ -20,7 +23,7 @@ final class FlickrApiClient
     private readonly TestEndpoint $test;
     private readonly UrlsEndpoint $urls;
 
-    public function __construct(private HttpClientInterface $httpClient, private ApiClientConfig $config)
+    public function __construct(private HttpClientInterface $httpClient, private ApiClientConfig $config, private ?LoggerInterface $flickrApiLogger)
     {
     }
 
@@ -46,12 +49,14 @@ final class FlickrApiClient
     
     public function call(string $method, array $params, ?string $envelope = null): ApiResponse
     {
-        $requestOpts = $this->buildHttpClientOptions($method, $params);
-        $response = $this->httpClient->request('GET', 'https://www.flickr.com/services/rest', $requestOpts);
+        $requestOpts = $this->buildHttpClientOptions($method, $params, $envelope);
+        $this->logCall($method, $params, $envelope, $requestOpts);
 
         try {
+            $response = $this->httpClient->request('GET', 'https://www.flickr.com/services/rest', $requestOpts);
             $rawContent = $response->toArray();
         } catch (\Throwable $t) {
+            $this->logCall($method, $params, $envelope, $requestOpts, 'transport error "' . $t->getMessage() . '"');
             throw TransportException::create(
                 \sprintf(
                     'HTTP call to API failed with %s: %s ',
@@ -63,6 +68,42 @@ final class FlickrApiClient
         }
 
         return new ApiResponse($rawContent, $envelope, $response);
+    }
+
+    private function logCall(string $method, array $params, ?string $envelope, ?array $httpConfig, ?string $error = null): void
+    {
+        if ($this->flickrApiLogger === null) {
+            return;
+        }
+
+        $paramsTxt = [];
+        foreach ($params as $k => $v) {
+            $paramsTxt[] = "$k=$v";
+        }
+
+        $msg = 'Call {mthd}({args})[{env}]';
+        $ctx = [
+            'mthd' => $method,
+            'args' => \implode(', ', $paramsTxt),
+            'env' => $envelope,
+        ];
+
+        if ($httpConfig !== null) {
+            $msg .= ' via key={key} ua={ua} prx={prx}';
+            $ctx['key'] = $httpConfig['query']['api_key'];
+            $ctx['ua'] = $httpConfig['headers']['User-Agent'] ?? '???';
+            $ctx['prx'] = $httpConfig['proxy'] ?? null;
+        }
+
+        if ($error !== null) {
+            $msg .= ' FAILED: {msg}';
+            $ctx['msg'] = $error;
+
+            $this->flickrApiLogger->error($msg, $ctx);
+        } else {
+            $this->flickrApiLogger->debug($msg, $ctx);
+        }
+
     }
 
     /**
@@ -82,14 +123,16 @@ final class FlickrApiClient
         return $client;
     }
 
-    private function buildHttpClientOptions(string $apiMethod, array $userParams): array
+    private function buildHttpClientOptions(string $apiMethod, array $userParams, ?string $envelope): array
     {
         if (!\str_starts_with($apiMethod, 'flickr.')) {
+            $this->logCall($apiMethod, $userParams, $envelope, null, 'invalid method name');
             throw new BadApiMethodCallException(\sprintf('Invalid method name "%s"', $apiMethod));
         }
 
         if (isset($userParams['method']) || isset($userParams['api_key']) ||
             isset($userParams['format']) || isset($userParams['nojsoncallback'])) {
+            $this->logCall($apiMethod, $userParams, $envelope, null, 'reserved parameters passed');
             throw new BadApiMethodCallException(
                 'Parameters array should not contain reserved keywords: method, api_key, format, nojsoncallback. ' .
                 'Found: ' . \implode('", "', \array_keys($userParams))

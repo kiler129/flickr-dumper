@@ -6,10 +6,14 @@ namespace App\Struct;
 use App\Exception\DomainException;
 
 /**
- * @property-read string $id
- * @property-read string $secret
- * @property-read string $server
- * @property-read int $farm
+ * Simple DTO to map array response from API to a typed object
+ *
+ * Below are all the fields discovered. Ones marked with "*" are only available when requested (see PhotoExtraFields).
+ *
+ * @property-read int $id Identifier of a photo; available: photosets, [probably all]
+ * @property-read string $secret Secret used for most CDN sizes; available: photosets,
+ * @property-read string $server Server id where photo is; available: photosets,
+ * @property-read int $farm Server group id; available: photosets,
  * @property-read string $title
  * @property-read bool $primary
  * @property-read bool $public
@@ -21,7 +25,9 @@ use App\Exception\DomainException;
  * @property-read \DateTimeInterface $dateUpdated
  * @property-read \DateTimeInterface $dateTaken
  * @property-read bool $dateTakenUnknown
- * @property-read string $ownerName
+ * @property-read string $ownerUsername Username (e.g. "Space X Photos"); available: photosets*,
+ * @property-read string $ownerNsid NSID of the owner (e.g. "1234@N01"); available: faves,
+ * @property-read string|null $ownerScreenName Nick of the owner (e.g. "spacex"); available: photosets*, faves*
  * @property-read string $iconServer
  * @property-read int $iconFarm
  * @property-read int $views
@@ -32,11 +38,13 @@ use App\Exception\DomainException;
  * @property-read float $latitude
  * @property-read float $longitude
  * @property-read int $accuracy
+ *
+ * @deprecated Move to Flickr\Struct\PhotoDTO
  */
-final class PhotoMetadata
+final class PhotoDto
 {
     private const SIMPLE_TYPECAST_MAP = [
-        'id' => 'string',
+        'id' => 'int',
         'secret' => 'string',
         'server' => 'string',
         'farm' => 'int',
@@ -47,6 +55,7 @@ final class PhotoMetadata
         'isfamily' => 'bool',
         'datetakenunknown' => 'bool',
         'ownername' => 'string',
+        'owner' => 'string',
         'iconserver' => 'string',
         'iconfarm' => 'int',
         'views' => 'int',
@@ -68,18 +77,22 @@ final class PhotoMetadata
         'dateUpdated' => 'lastupdate',
         'dateTaken' => 'datetaken',
         'dateTakenUnknown' => 'datetakenunknown',
-        'ownerName' => 'ownername',
+        'ownerUsername' => 'ownername',
+        'ownerNsid' => 'owner',
+        'ownerScreenname' => 'pathalias',
         'iconServer' => 'iconserver',
         'iconFarm' => 'iconfarm',
         'originalSecret' => 'originalsecret',
         'originalFormat' => 'originalformat',
     ];
 
-    private array $data = [];
+    public readonly array $apiData;
+
+    private array $dataTransformed = [];
 
     public function __set(string $name, mixed $value): void
     {
-        $this->data[$name] = $value;
+        $this->apiData[$name] = $value;
     }
 
     public function __get(string $name): mixed
@@ -88,30 +101,30 @@ final class PhotoMetadata
             $name = self::KNOWN_TO_API[$name];
         }
 
-        if (!\array_key_exists($name, $this->data)) {
+        if (isset($this->dataTransformed[$name])) {
+            return $this->dataTransformed[$name];
+        }
+
+        if (!\array_key_exists($name, $this->apiData)) {
             throw new DomainException('Property ' . $name . ' is not present in the dataset');
         }
 
-
-        return $this->transformValue($name, $this->data[$name]);
+        return $this->dataTransformed[$name] = $this->transformValue($name, $this->apiData[$name]);
     }
 
     public function __isset(string $name): bool
     {
-        if (isset(self::KNOWN_TO_API[$name])) {
-            $name = self::KNOWN_TO_API[$name];
-        }
-
-        return \array_key_exists($name, $this->data);
+        return \array_key_exists(self::KNOWN_TO_API[$name] ?? $name, $this->apiData);
     }
 
     /**
      * @return array<string, array{size: PhotoSize, url: string, width: int, height: int}>
+     * @deprecated Use PhotoSize and ResolvePhotoVariants as needed
      */
     public function getAvailableSizes(): array
     {
         $ret = [];
-        foreach ($this->data as $k => $v) {
+        foreach ($this->apiData as $k => $v) {
             if (preg_match('/^url_(.+)$/', $k, $out) !== 1) {
                 continue; //not a URL property
             }
@@ -123,9 +136,9 @@ final class PhotoMetadata
 
             $ret[$out[1]] = [
                 'size' => $size,
-                'url' => $this->data[$k],
-                'width' => $this->data['width_' . $out[1]],
-                'height' => $this->data['height_' . $out[1]],
+                'url' => $this->apiData[$k],
+                'width' => $this->apiData['width_' . $out[1]],
+                'height' => $this->apiData['height_' . $out[1]],
             ];
         }
 
@@ -135,6 +148,8 @@ final class PhotoMetadata
     /**
      * Same as getAvailableSizes but sorts from smallest to largest size
      * @return array[]
+     *
+     * @deprecated Use PhotoSize like in getLargestSize.
      */
     public function getSortedSizes(): array
     {
@@ -144,21 +159,48 @@ final class PhotoMetadata
         return $sizes;
     }
 
+    public function getLargestSize(): ?PhotoSize
+    {
+        foreach (PhotoSize::CASES_SIZE_DESCENDING as $size)
+        {
+            $apiField = $size->asApiField();
+            if (isset($this->apiData[$apiField])) {
+                return $size;
+            }
+        }
+
+        return null;
+    }
+
+    public function getSizeUrl(PhotoSize $size): ?string
+    {
+        $field = $size->asApiField();
+        if (!isset($this->apiData[$field])) {
+            throw new DomainException(\sprintf('Size %s (%s) is not present in the data', $size->name, $size->value));
+        }
+
+        return $this->apiData[$field];
+    }
+
     private function transformValue(string $apiName, mixed $value): mixed
     {
         return match ($apiName) {
-            PhotoExtraFields::DESCRIPTION->value => $value['_content'] ?? null,
+            //"title" doesn't have "_content"
+            PhotoExtraFields::DESCRIPTION->value => $value['_content'] ?? '',
             PhotoExtraFields::LICENSE->value => \explode(',', $value),
             'dateupload', 'lastupdate', 'datetaken' => $this->castDateTime($value),
-            'datetakenunknown' => $this->castPseudoBool($value),
             'tags' => \explode(' ', $value),
-            default => $this->autoCastToKnownType($apiName, $value)
+            default => $this->transformAutocast($apiName, $value)
         };
     }
 
-    private function castPseudoBool(int|string $value): bool
+    private function transformAutocast(string $apiName, mixed $value): mixed
     {
-        return $value === 1 || $value === '1';
+        if (isset(self::SIMPLE_TYPECAST_MAP[$apiName])) {
+            \settype($value, self::SIMPLE_TYPECAST_MAP[$apiName]);
+        }
+
+        return $value;
     }
 
     private function castDateTime(int|string $value): \DateTimeInterface
@@ -168,23 +210,13 @@ final class PhotoMetadata
             return $dti->setTimestamp((int)$value);
         }
 
-
         return new \DateTimeImmutable($value);
-    }
-
-    private function autoCastToKnownType(string $apiName, mixed $value): mixed
-    {
-        if (isset(self::SIMPLE_TYPECAST_MAP[$apiName])) {
-            \settype($value, self::SIMPLE_TYPECAST_MAP[$apiName]);
-        }
-
-        return $value;
     }
 
     static public function fromApiResponse(array $fields): self
     {
         $obj = new self();
-        $obj->data = $fields;
+        $obj->apiData = $fields;
 
         return $obj;
     }

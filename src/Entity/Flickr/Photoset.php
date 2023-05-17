@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Entity\Flickr;
 
 use App\Repository\Flickr\PhotosetRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\String\UnicodeString;
@@ -37,6 +39,9 @@ class Photoset implements PhotoCollection, UserOwnedEntity
     #[ORM\JoinColumn(nullable: false, referencedColumnName: 'nsid')]
     private User $owner;
 
+    #[ORM\ManyToMany(targetEntity: Photo::class, fetch: 'EXTRA_LAZY')]
+    private Collection $photos;
+
     #[ORM\Embedded]
     private CollectionStatus $status;
 
@@ -48,10 +53,11 @@ class Photoset implements PhotoCollection, UserOwnedEntity
         $this->id = $id;
         $this->setOwner($owner);
         $this->setDateLastRetrieved($retrieved ?? new \DateTimeImmutable());
+        $this->photos = new ArrayCollection();
         $this->status = new CollectionStatus();
     }
 
-    public function getId(): ?int
+    public function getId(): int
     {
         return $this->id;
     }
@@ -61,7 +67,7 @@ class Photoset implements PhotoCollection, UserOwnedEntity
         $id = 'Album/photoset ID=' . $this->id;
 
         if ($this->title !== null) {
-            $id .= '(' . (new UnicodeString($this->title))->truncate(30, '...', false) . ')';
+            $id .= ' (' . (new UnicodeString($this->title))->truncate(30, '...', false) . ')';
         }
 
         return $id;
@@ -118,6 +124,8 @@ class Photoset implements PhotoCollection, UserOwnedEntity
             $dateLastUpdated = \DateTimeImmutable::createFromInterface($dateLastUpdated);
         }
 
+        $this->dateLastUpdated = $dateLastUpdated;
+
         return $this;
     }
 
@@ -153,7 +161,7 @@ class Photoset implements PhotoCollection, UserOwnedEntity
         return $this;
     }
 
-    public function getOwner(): ?User
+    public function getOwner(): User
     {
         return $this->owner;
     }
@@ -161,6 +169,30 @@ class Photoset implements PhotoCollection, UserOwnedEntity
     public function setOwner(?User $owner): self
     {
         $this->owner = $owner;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Photo>
+     */
+    public function getPhotos(): Collection
+    {
+        return $this->photos;
+    }
+
+    public function addPhoto(Photo $photo): self
+    {
+        if (!$this->photos->contains($photo)) {
+            $this->photos->add($photo);
+        }
+
+        return $this;
+    }
+
+    public function removePhoto(Photo $photo): self
+    {
+        $this->photos->removeElement($photo);
 
         return $this;
     }
@@ -194,6 +226,11 @@ class Photoset implements PhotoCollection, UserOwnedEntity
 
     public function isWriteLocked(): bool
     {
-        return $this->status->writeLocked;
+        return $this->status->writeLockedAt !== null;
+    }
+
+    public static function ownerOwnsPhotos(): bool
+    {
+        return true;
     }
 }

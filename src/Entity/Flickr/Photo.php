@@ -33,11 +33,14 @@ class Photo
     #[ORM\Column]
     private \DateTimeImmutable $dateLastRetrieved;
 
-    #[ORM\Column(type: Types::TEXT)]
-    private ?string $filePath;
-
     #[ORM\Column]
     private PhotoSize $fileVersion;
+
+    #[ORM\Column(length: 255)]
+    private string $cdnUrl;
+
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $localPath = null;
 
     #[ORM\ManyToOne(inversedBy: 'photos')]
     #[ORM\JoinColumn(nullable: false, referencedColumnName: 'nsid')]
@@ -46,16 +49,20 @@ class Photo
     #[ORM\Column]
     private int $views = 0;
 
+    #[ORM\Embedded]
+    private PhotoStatus $status;
+
     #[ORM\Column]
     private array $apiData = [];
 
-    public function __construct(int $id, User $owner, string $filePath, PhotoSize $fileVersion, ?\DateTimeInterface $retrieved = null)
+    public function __construct(int $id, User $owner, PhotoSize $fileVersion, string $cdnUrl, ?\DateTimeInterface $retrieved = null)
     {
         $this->id = $id;
+        $this->status = new PhotoStatus();
 
         $this->setOwner($owner);
-        $this->setFilePath($filePath);
         $this->setFileVersion($fileVersion);
+        $this->setCdnUrl($cdnUrl);
         $this->setDateLastRetrieved($retrieved ?? new \DateTimeImmutable());
     }
 
@@ -152,18 +159,6 @@ class Photo
         return $this;
     }
 
-    public function getFilePath(): string
-    {
-        return $this->filePath;
-    }
-
-    public function setFilePath(string $filePath): self
-    {
-        $this->filePath = $filePath;
-
-        return $this;
-    }
-
     public function getFileVersion(): PhotoSize
     {
         return $this->fileVersion;
@@ -172,6 +167,34 @@ class Photo
     public function setFileVersion(PhotoSize $fileVersion): self
     {
         $this->fileVersion = $fileVersion;
+
+        return $this;
+    }
+
+    public function getCdnUrl(): ?string
+    {
+        return $this->cdnUrl;
+    }
+
+    public function setCdnUrl(string $cdnUrl): self
+    {
+        if (!isset($this->cdnUrl) || $this->cdnUrl !== $cdnUrl) {
+            $this->status->filesystemInSync = false;
+        }
+
+        $this->cdnUrl = $cdnUrl;
+
+        return $this;
+    }
+
+    public function getLocalPath(): ?string
+    {
+        return $this->localPath;
+    }
+
+    public function setLocalPath(?string $localPath): self
+    {
+        $this->localPath = $localPath;
 
         return $this;
     }
@@ -210,5 +233,30 @@ class Photo
         $this->apiData = $apiData;
 
         return $this;
+    }
+
+    public function isBlacklisted(): bool
+    {
+        return $this->status->blacklisted;
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->status->deleted;
+    }
+
+    public function isWriteLocked(): bool
+    {
+        return $this->status->writeLockedAt !== null;
+    }
+
+    public function isFilesystemInSync(): bool
+    {
+        return $this->status->filesystemInSync;
+    }
+
+    public static function ownerOwnsPhotos(): bool
+    {
+        return true;
     }
 }

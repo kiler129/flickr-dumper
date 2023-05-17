@@ -93,7 +93,8 @@ enum PhotoSize: string
      */
     public function compareWith(PhotoSize $otherSize): int
     {
-        return \array_search($this->value, self::ALL, true) <=> \array_search($otherSize, self::ALL, true);
+        return \array_search($this, self::CASES_SIZE_DESCENDING, true) <=>
+               \array_search($otherSize, self::CASES_SIZE_DESCENDING, true);
     }
 
     /**
@@ -102,7 +103,7 @@ enum PhotoSize: string
      *
      * @return string|null Some sizes cannot be requested
      */
-    public function asUrlRequest(): ?string
+    public function asApiField(): ?string
     {
         if ($this->value === '') {
             return null;
@@ -115,6 +116,8 @@ enum PhotoSize: string
      * Gets all sizes as url request/response keys in size-descending order
      *
      * @return list<string>
+     *
+     * @deprecated It's likely not needed
      */
     public static function allAsUrlRequestsDescending(): array
     {
@@ -125,7 +128,7 @@ enum PhotoSize: string
 
         $allUrlRequests = [];
         foreach (self::CASES_SIZE_DESCENDING as $size) {
-            $rSize = $size->asUrlRequest();
+            $rSize = $size->asApiField();
             if ($rSize !== null) {
                 $allUrlRequests[] = $rSize;
             }

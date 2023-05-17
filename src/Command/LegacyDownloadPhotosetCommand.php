@@ -8,7 +8,7 @@ use App\Flickr\BaseApiClient;
 use App\Flickr\PhotoSets;
 use App\Flickr\Urls;
 use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoMetadata;
+use App\Struct\PhotoDto;
 use App\Util\NameGenerator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -179,7 +179,7 @@ class LegacyDownloadPhotosetCommand extends BaseDownloadCommand
 
     private function getLargestSizeUrl(array $photo): string
     {
-        $sizes = PhotoMetadata::fromApiResponse($photo)->getSortedSizes();
+        $sizes = PhotoDto::fromApiResponse($photo)->getSortedSizes();
         $largestKey = \array_key_last($sizes);
 
         return $sizes[$largestKey]['url'];

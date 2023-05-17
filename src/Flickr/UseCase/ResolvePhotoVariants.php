@@ -15,7 +15,9 @@ class ResolvePhotoVariants
     }
 
     /**
-     * Modified existing/default API extras to include photo variants to be resolved later from response
+     * Modified existing/default API extras to include all photo variants to be resolved later from response
+     *
+     * You can also add PhotoSize->asUrlRequest or PhotoExtraFields::URL_* constants (should this be unified? @todo)
      */
     public function addVariantsToRequest(array $extras): array
     {
