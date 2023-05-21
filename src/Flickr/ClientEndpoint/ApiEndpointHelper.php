@@ -47,6 +47,7 @@ trait ApiEndpointHelper
             }
 
             if (\is_string($attr) && PhotoExtraFields::tryFrom($attr) !== null) {
+                \trigger_error('Passing strings to serializeExtras is deprecated', \E_USER_DEPRECATED);
                 $normalizedExtras[] = $attr;
                 continue;
             }
@@ -65,13 +66,17 @@ trait ApiEndpointHelper
 
     /**
      * @param callable(int $page): ApiResponse $getPaged
+     * @param callable(int $page): void $pageFinishCb
      *
      * @return iterable<array<mixed>>
      */
-    private function flattenPages(callable $getPaged, string $container): iterable
+    private function flattenPages(callable $getPaged, ?callable $pageFinishCb, string $container): iterable
     {
         $page = 1;
         $totalPages = null;
+        if ($pageFinishCb === null) {
+            $pageFinishCb = function (): void {};
+        }
 
         do {
             $rsp = $getPaged($page)->getContent();
@@ -91,6 +96,7 @@ trait ApiEndpointHelper
             }
 
             yield from $rsp[$container];
+            $pageFinishCb($page);
         } while (++$page <= $totalPages);
     }
 }

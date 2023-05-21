@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Repository\Flickr;
 
@@ -38,6 +39,18 @@ class PhotosetRepository extends ServiceEntityRepository implements CollectionRe
         if ($flush) {
             $this->getEntityManager()->flush();
         }
+    }
+
+    /**
+     * @return list<Photoset>
+     */
+    public function findLocked(): array
+    {
+        return $this->createQueryBuilder('p')
+                    ->andWhere('p.status.writeLockedAt IS NOT NULL')
+                    ->getQuery()
+                    ->getResult()
+            ;
     }
 
 //    /**

@@ -110,6 +110,7 @@ final class UrlParser
         '/i';
 
 
+
     //public function getPhotosetIdentity(string $url): AlbumIdentity
     //{
     //    //Passed link to a collection of photos directly
@@ -158,7 +159,10 @@ final class UrlParser
     public function getCollectionIdentity(string $url): CollectionIdentity
     {
         //Collection URL parsing is more permissive and can return e.g. user photostream for view URL, so it should be
-        // checked second.
+        // checked second.... screw that: this is actually wrong
+        //In this one we should prioritize COLLECTIONS... so we need two separate regexes for that but one should
+        //match STRICTLY collections and never match individual photos really
+
         $data = $this->parsePhotoViewUrl($url);
         if ($data !== null && $data['colType'] ?? '' !== '') {
             $type = CollectionType::from($data['colType']);

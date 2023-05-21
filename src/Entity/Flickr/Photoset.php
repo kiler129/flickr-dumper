@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use App\Exception\LogicException;
 use App\Repository\Flickr\PhotosetRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -222,6 +223,28 @@ class Photoset implements PhotoCollection, UserOwnedEntity
     public function isDeleted(): bool
     {
         return $this->status->deleted;
+    }
+
+    public function lockForWrite(): void
+    {
+        if ($this->status->writeLockedAt !== null) {
+            throw new LogicException(
+                \sprintf(
+                    'Photoset %d is already write-locked since %s - cannot re-lock',
+                    $this->id,
+                    $this->status->writeLockedAt->format('Y-mt-d H:i:s')
+                )
+            );
+        }
+
+        $this->status->writeLockedAt = new \DateTimeImmutable();
+    }
+
+    public function unlockForWrite(): self
+    {
+        $this->status->writeLockedAt = null;
+
+        return $this;
     }
 
     public function isWriteLocked(): bool

@@ -4,12 +4,14 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices/configuration.html#application-related-configuration
 parameters:
-    env(FLICKR_API_PROXY): ~
-    env(FLICKR_DOWNLOAD_PROXY): ~
+    env(FLICKR_API_KEYS): ''
+    env(FLICKR_PROXIES): ''
+    env(FLICKR_BATCH_SIZE): 5
 
     app.storage_root: '%env(STORAGE_LOCATION)%'
     app.flickr_api_keys: '%env(csv:default::FLICKR_API_KEYS)%'
     app.flickr_proxies: '%env(csv:default::FLICKR_PROXIES)%'
+    app.flickr_batch_size: '%env(int:FLICKR_BATCH_SIZE)%'
 
     app.flickr_api_proxy: '%env(string:FLICKR_API_PROXY)%' # deprecated
     app.flickr_download_proxy: '%env(string:FLICKR_DOWNLOAD_PROXY)%' # deprecated
@@ -44,15 +46,18 @@ services:
     App\Command\SyncCollectionCommand:
         arguments:
             $syncCollection: !service_closure '@App\UseCase\SyncCollection'
-            $syncPhotoToDisk: !service_closure '@App\UseCase\SyncPhotoToDisk'
+            $fetchPhotoToDisk: !service_closure '@App\UseCase\FetchPhotoToDisk'
+            $consoleHandler: '@monolog.handler.console'
 
     # usecase has state for options
     App\UseCase\SyncCollection:
         shared: false
 
     # usecase has state for options
-    App\UseCase\SyncPhotoToDisk:
+    App\UseCase\FetchPhotoToDisk:
         shared: false
+        arguments:
+            $batchSize: '%app.flickr_batch_size%'
 
     # replaced by ApiClientConfigFactory logic
     App\Flickr\ApiKeyProvider:
@@ -96,3 +101,4 @@ services:
             message: '%service_id%: Use batch downlaoder service (tbd) instead'
         class: Symfony\Contracts\HttpClient\HttpClientInterface
         factory:  ['@App\Factory\HttpClientFactory', 'createDownloadHttpClient']
+

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use Doctrine\DBAL\Types\Type;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Embeddable]
@@ -23,11 +25,11 @@ class PhotoStatus
     public bool $deleted = false;
 
     /**
-     * @var bool Canary flag preventing photo from being touched automatically by other processes in
-     *           multi-threading environment
+     * @var \DateTimeImmutable|null Canary flag preventing photo from being touched automatically by other processes in
+     *                              multi-threading environment
      */
     #[ORM\Column(nullable: true)]
-    public ?\DateTimeInterface $writeLockedAt = null;
+    public ?\DateTimeImmutable $writeLockedAt = null;
 
     /**
      * @var bool Denotes whether the filesystem contains the file referenced by URL (and in consequence the metadata

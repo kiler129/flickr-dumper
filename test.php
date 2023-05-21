@@ -6,18 +6,28 @@ use Symfony\Component\Finder\Finder;
 
 require 'vendor/autoload.php';
 
-
-$local = \App\Struct\PhotoSize::LARGE_1024;
-$remote = \App\Struct\PhotoSize::ORIGINAL;
-
+class foo {
+    readonly public string $whatLuklewLikes;
 
 
-dd($local->compareWith($remote));
+    public function __construct(private string $whatLuklewReallyLikes)
+    {
+        $this->whatLuklewLikes = &$this->whatLuklewReallyLikes;
+    }
+
+    public function magic(string $wizard): void
+    {
+
+    }
+}
+
+
+$foo = new foo('Python');
+dump($foo->whatLuklewLikes);
 
 
 
-
-
+die;
 
 
 

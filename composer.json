@@ -17,6 +17,7 @@
         "symfony/framework-bundle": "6.2.*",
         "symfony/http-client": "6.2.*",
         "symfony/maker-bundle": "^1.30",
+        "symfony/monolog-bundle": "^3.8",
         "symfony/process": "6.2.*",
         "symfony/serializer": "6.2.*",
         "symfony/yaml": "6.2.*"

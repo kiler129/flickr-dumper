@@ -3,25 +3,32 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Entity\Flickr\Photo;
 use App\Flickr\Enum\CollectionType;
-use App\Flickr\PhotoSets;
 use App\Flickr\Struct\Identity\AlbumIdentity;
 use App\Flickr\Struct\Identity\CollectionIdentity;
 use App\Flickr\Struct\Identity\UserFavesIdentity;
 use App\Flickr\Struct\Identity\UserPhotostreamIdentity;
 use App\Flickr\Url\UrlParser;
-use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoDto;
+use App\Struct\DownloadJobStatus;
 use App\UseCase\SyncCollection;
-use App\UseCase\SyncPhotoToDisk;
+use App\UseCase\FetchPhotoToDisk;
+use Psr\Log\LoggerInterface;
+use Symfony\Bridge\Monolog\Handler\ConsoleHandler;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\ConsoleSectionOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+/**
+ * @phpstan-import-type TSyncCallback from FetchPhotoToDisk
+ */
 #[AsCommand(
     name: 'flickr:sync-collection',
     aliases: [
@@ -35,28 +42,26 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class SyncCollectionCommand extends Command
 {
-    //public function __construct(
-    //    HttpClientFactory $clientFactory,
-    //    Filesystem $fs,
-    //    BaseApiClient $apiClient,
-    //    NameGenerator $nameGenerator,
-    //    private Urls $flickrUrls,
-    //    private PhotoSets $flickrAlbums,
-    //) {
-    //    parent::__construct($clientFactory, $fs, $apiClient, $nameGenerator);
-    //}
+    private SymfonyStyle           $io;
 
-    private SymfonyStyle $io;
+    private ConsoleOutputInterface $progressOutput;
 
+    /** @var array<int, array{bar: ProgressBar, scr: ConsoleSectionOutput} */
+    private array $progressScreens = [];
+
+    /** @var list<ConsoleSectionOutput> */
+    private array $availableScreens = [];
 
     /**
-     * @param callable(): SyncCollection $syncCollection
-     * @param callable(): SyncPhotoToDisk $syncPhotoToDisk
+     * @param callable(): SyncCollection   $syncCollection
+     * @param callable(): FetchPhotoToDisk $fetchPhotoToDisk
      */
     public function __construct(
+        private LoggerInterface $log,
+        private ConsoleHandler $consoleHandler,
         private UrlParser $urlParser,
         private \Closure $syncCollection,
-        private \Closure $syncPhotoToDisk,
+        private \Closure $fetchPhotoToDisk,
     ) {
         parent::__construct();
     }
@@ -94,6 +99,18 @@ class SyncCollectionCommand extends Command
                  InputOption::VALUE_NONE,
                  'Do not trust the database<=>fs consistency (in case you mangled files manually)'
              )
+             ->addOption(
+                 'index-only',
+                 'i',
+                 InputOption::VALUE_NONE,
+                 'Do not download any files'
+             )
+            ->addOption(
+                'randomize-identity',
+                'r',
+                InputOption::VALUE_NONE,
+                'Randomizes HTTP client identity and API keys (if multiple configured)'
+            )
              ->addArgument(
                  'collection',
                  InputArgument::OPTIONAL,
@@ -104,105 +121,141 @@ class SyncCollectionCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        //$this->progressOutput = $output;
+        //
+        //$logSection = $output->section();
+        //$this->consoleHandler->setOutput($logSection);
+        //
+        //$one = new DownloadJobStatus(1, [$this, 'renderStatusProgress']);
+        //$two = new DownloadJobStatus(2, [$this, 'renderStatusProgress']);
+        //$one->report();
+        //$two->report();
+        //
+        //$one->bytesTotal = $two->bytesTotal = 100;
+        //$one->bytesDownloaded = $two->bytesDownloaded = 0;
+        //
+        //
+        //$i = 0;
+        //while (++$i < 100) {
+        //    $one->bytesDownloaded = $i;
+        //    $one->report();
+        //
+        //    if ($i % 2 === 0) {
+        //        $two->bytesDownloaded = $i / 2;
+        //        $two->report();
+        //    }
+        //
+        //    if ($i % 10 === 0) {
+        //        $this->log->info('test ' . $i);
+        //    }
+        //
+        //    usleep(50000);
+        //}
+        //
+        //die;
+
+
+
+
         $this->io = new SymfonyStyle($input, $output);
+
         $identity = $this->getCollectionIdentity($input);
-        if ($identity === null) {
+        $sinkCb = $this->getSinkCallable($input, $output);
+
+        if ($identity === null || $sinkCb === null) {
             return Command::FAILURE;
         }
 
         $syncUC = ($this->syncCollection)(); //this will always get a new instance
         $syncUC->syncCompleted = !$input->getOption('ignore-completed');
         $syncUC->trustUpdateTimestamps = !$input->getOption('distrust-timestamps');
+        $syncUC->trustPhotoRecords = !$input->getOption('repair-files');
+        $syncUC->switchIdentities = $input->getOption('randomize-identity');
 
-        $dlUC = ($this->syncPhotoToDisk)(); //this will always get a new instance
-        $dlUC->trustPhotoRecords = !$input->getOption('repair-files');
-
-        return $syncUC->syncCollection($identity, $dlUC) ? Command::SUCCESS : Command::FAILURE;
+        return $syncUC->syncCollection($identity, $sinkCb) ? Command::SUCCESS : Command::FAILURE;
     }
 
-    protected function __OLD_execute(InputInterface $input, OutputInterface $output): int
+    /**
+     * @return TSyncCallback
+     */
+    private function getSinkCallable(InputInterface $input, OutputInterface $output): ?callable
     {
-
-        $parentExit = parent::execute($input, $output);
-        if ($parentExit !== Command::SUCCESS) {
-            return $parentExit;
-        }
-
-        $skipExisting = !$input->getOption('force-download');
-        $saveMetadata = (bool)$input->getOption('save-metadata');
-
-        $nsid = $input->getOption('user-id');
-        $photoset = (string)$input->getArgument('photoset');
-        $photosetIsUrl = (preg_match('/^https?:\/\//', $photoset) === 1);
-
-        if ($nsid === null) {
-            if (!$photosetIsUrl) {
-                $this->io->error(
-                    'Photoset specified is in an ID form (not an URL) and no user-id was specified. You need to ' .
-                    'specify user-id option or pass photoset URL'
-                );
-
-                return Command::FAILURE;
+        $repairFiles = $input->getOption('repair-files');
+        if ($input->getOption('index-only')) {
+            if ($repairFiles) {
+                $this->io->error('--index-only and --repair-files are mutually exclusive');
+                return null;
             }
 
-            $nsid = $this->flickrUrls->lookupUserId($photoset);
+            return function(Photo $photo): bool {
+                $this->log->info('[Index-Only Mode] Photo ID={pid} would have been downloaded', ['pid' => $photo->getId()]);
+                return true;
+            };
         }
 
-        $photosetId = $photosetIsUrl ? $this->flickrUrls->getPhotosetIdFromUrl($photoset) : $photoset;
-        $targetDir = $this->getDestination($input, $nsid, $photosetId);
+        $dlUC = ($this->fetchPhotoToDisk)(); //this will always get a new instance
+        $dlUC->switchIdentities = $input->getOption('randomize-identity');
 
-        $photos = $this->flickrAlbums->iteratePhotosFlat(
-            $nsid,
-            $photosetId,
-            PhotoSets::MAX_PER_PAGE,
-            [ //in the future this may be configurable
-                PhotoExtraFields::DESCRIPTION,
-                PhotoExtraFields::DATE_UPLOAD,
-                PhotoExtraFields::DATE_TAKEN,
-                PhotoExtraFields::OWNER_NAME,
-                PhotoExtraFields::LAST_UPDATE,
-                PhotoExtraFields::VIEWS,
-                PhotoExtraFields::MEDIA
-            ] + PhotoExtraFields::casesSizes()
-            // /\ THIS IS BUGGY!!!! should be rray_merge
-        );
-
-        $isFirstPhoto = true; //Some sanity checks are done only once
-        $batchCounter = $maxBatchCounter = (int)$input->getOption('batch-size');
-        $albumCounter = 0;
-        $currentBatch = [];
-        $this->io->info('Getting album photos...');
-        //this loop DELIBERATELY doesn't reset API client identity to decrease API keys correlation
-        foreach ($photos as $photo) {
-            ++$albumCounter;
-
-            if ($isFirstPhoto) {
-                $isFirstPhoto = false;
-                $this->checkSizes($photo);
-            }
-
-            $this->addToBatch($currentBatch, $targetDir, $photo);
-            if ($saveMetadata) {
-                \file_put_contents(
-                    \sprintf('%s/%s.json', $targetDir, $photo['id']),
-                    \json_encode($photo, \JSON_PRETTY_PRINT)
-                );
-            }
-
-            if (--$batchCounter === 0) {
-                $batchCounter = $maxBatchCounter;
-                $this->downloadBatch($currentBatch, $skipExisting);
-                $currentBatch = [];
-            }
-        }
-        if (!empty($currentBatch)) {
-            $this->downloadBatch($currentBatch, $skipExisting);
-            $currentBatch = [];
+        if ($output instanceof ConsoleOutputInterface) {
+            $this->progressOutput = $output;
+            $logSection = $output->section();
+            $this->consoleHandler->setOutput($logSection);
+            $dlUC->onProgress([$this, 'renderStatusProgress']);
         }
 
-        $this->io->success("Finished saving album ID=$photosetId with $albumCounter pictures");
+        return $dlUC;
+    }
 
-        return Command::SUCCESS;
+    /**
+     * @internal
+     */
+    public function renderStatusProgress(DownloadJobStatus $status): void
+    {
+        $jobId = $status->jobId;
+        $total = $status->bytesTotal;
+        $downloaded = $status->bytesDownloaded;
+        if ($total === -1) {
+            $total = 0;
+        }
+        if ($downloaded === -1) {
+            $downloaded = 0;
+        }
+
+        if (!isset($this->progressScreens[$jobId])) {
+            $screen = \array_pop($this->availableScreens);
+            if ($screen === null) {
+                $screen = $this->progressOutput->section();
+            }
+
+            $bar = new ProgressBar($screen);
+            $bar->setEmptyBarCharacter('▱');
+            $bar->setProgressCharacter('');
+            $bar->setBarCharacter('▰');
+            $bar->minSecondsBetweenRedraws(0.25);
+
+            $this->progressScreens[$jobId] = [
+                'bar' => $bar,
+                'scr' => $screen
+            ];
+
+            $this->progressScreens[$jobId]['bar']->start($total, $downloaded);
+        } elseif ($this->progressScreens[$jobId]['bar']->getMaxSteps() !== $total) {
+            $this->progressScreens[$jobId]['bar']->setMaxSteps($total);
+        }
+
+        if ($status->completed) {
+            $this->progressScreens[$jobId]['bar']->finish();
+            $this->progressScreens[$jobId]['scr']->clear();
+            $this->availableScreens[] = $this->progressScreens[$jobId]['scr'];
+            unset($this->progressScreens[$jobId]);
+
+            return;
+        }
+
+
+        if ($this->progressScreens[$jobId]['bar']->getProgress() !== $downloaded) {
+            $this->progressScreens[$jobId]['bar']->setProgress($downloaded);
+        }
     }
 
     private function getCollectionIdentity(InputInterface $input): ?CollectionIdentity
@@ -231,93 +284,5 @@ class SyncCollectionCommand extends Command
             CollectionType::GALLERY => new AlbumIdentity($nsid, $collection),
             //pool handling is unknown
         };
-    }
-
-    private function getDestination(InputInterface $input, string $nsid, string $photosetId): string
-    {
-        $targetDir = $input->getArgument('destination');
-
-        if (empty($targetDir)) {
-            //$targetDir = \sprintf('%s/photoset-nsid%s-id%s', $nsid, $photosetId);
-            $setInfo = $this->flickrAlbums->getInfo($nsid, $photosetId);
-            $targetDir = $this->getPhotosetStableDir($setInfo);
-        }
-
-        $this->fs->mkdir($targetDir);
-
-        return $targetDir;
-    }
-
-    private function checkSizes(array $photo): void
-    {
-        if (isset($photo[PhotoExtraFields::URL_ORIGINAL->value])) {
-            return;
-        }
-
-        $this->io->warning(
-            'It seems like you do not have permissions to download originals from that user. ' .
-            'The dumper will try to pick the largest image possible for this user.'
-        );
-    }
-
-    private function addToBatch(array &$batch, string $targetDir, array $photo): void
-    {
-        $url = $photo[PhotoExtraFields::URL_ORIGINAL->value] ?? $this->getLargestSizeUrl($photo);
-        $urlPath = parse_url($url, PHP_URL_PATH);
-        $filename = substr(strrchr($urlPath, '/'), 1);
-
-        $batch[$url] = $targetDir . '/' . $filename;
-    }
-
-    private function getLargestSizeUrl(array $photo): string
-    {
-        $sizes = PhotoDto::fromApiResponse($photo)->getSortedSizes();
-        $largestKey = \array_key_last($sizes);
-
-        return $sizes[$largestKey]['url'];
-    }
-
-    private function downloadBatch(array $batch, bool $skipExisting): void
-    {
-        $streams = [];
-        $files = 0;
-        foreach ($batch as $url => $fsPath) {
-            if ($skipExisting && $this->fs->exists($fsPath)) {
-                continue; //Skip existing if desired
-            }
-
-            $sink = \fopen($fsPath, 'wb');
-            $stream = $this->downloadHttpClient->request('GET', $url, ['buffer' => false, 'user_data' => $sink]);
-            $this->ensureDownloadClientIdentity(); //Download client identity is shuffled every file to blend in
-            $streams[] = $stream;
-            ++$files;
-        }
-
-        if ($files === 0) {
-            $this->io->info('No new files in this batch found, skipping');
-
-            return;
-        }
-
-        $this->io->info("Downloading $files new files");
-        $this->io->progressStart($files);
-        foreach ($this->downloadHttpClient->stream($streams) as $stream => $chunk) {
-            $sink = $stream->getInfo('user_data');
-            \fwrite($sink, $chunk->getContent());
-
-            if ($chunk->isLast()) {
-                $this->io->progressAdvance();
-                \fclose($sink);
-
-                // \/ Debug identity changing
-                $x = $stream->getInfo('debug');
-                preg_match_all('/^user-agent: (.*)/im', $x, $ua);
-                preg_match_all('/^> GET (.*)$/im', $x, $rl);
-                $ident = \sprintf('IDENT for %s: UA<%s>', $rl[1][0] ?? 'UNK', $ua[1][0] ?? 'UNK');
-                dump($ident);
-            }
-        }
-
-        $this->io->info('Batch finished');
     }
 }

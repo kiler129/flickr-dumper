@@ -62,10 +62,12 @@ class PhotosetsEndpoint
         int $perPage = self::MAX_PER_PAGE,
         array $primaryPhotoExtras = [],
         array $photoIds = [],
-        array $sortGroups = []
+        array $sortGroups = [],
+        ?callable $pageFinishCallback = null,
     ): iterable {
         return $this->flattenPages(
             fn(int $page) => $this->getList($userId, $page, $perPage, $primaryPhotoExtras, $photoIds, $sortGroups),
+            $pageFinishCallback,
             'photoset'
         );
     }
@@ -109,7 +111,8 @@ class PhotosetsEndpoint
         int $perPage = self::MAX_PER_PAGE,
         array $extras = [],
         ?PrivacyLevel $privacyFilter = null,
-        ?MediaType $mediaType = null
+        ?MediaType $mediaType = null,
+        ?callable $pageFinishCallback = null,
     ): iterable
     {
         return $this->flattenPages(
@@ -122,7 +125,8 @@ class PhotosetsEndpoint
                 $privacyFilter,
                 $mediaType
             ),
-            'photo'
+            $pageFinishCallback,
+            'photo',
         );
     }
 

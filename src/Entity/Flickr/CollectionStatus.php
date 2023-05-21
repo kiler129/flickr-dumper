@@ -23,9 +23,9 @@ class CollectionStatus
     public bool $deleted = false;
 
     /**
-     * @var bool Canary flag preventing collection from being touched automatically by other processes in
-     *           multi-threading environment
+     * @var \DateTimeImmutable|null Canary flag preventing collection from being touched automatically by other
+     *                              processes in multi-threading environment
      */
     #[ORM\Column(nullable: true)]
-    public ?\DateTimeInterface $writeLockedAt = null;
+    public ?\DateTimeImmutable $writeLockedAt = null;
 }

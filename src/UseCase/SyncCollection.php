@@ -31,7 +31,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Service\ServiceSubscriberInterface;
 
 /**
- * @phpstan-import-type TSyncCallback from SyncPhotoToDisk
+ * @phpstan-import-type TSyncCallback from FetchPhotoToDisk
  */
 final class SyncCollection implements ServiceSubscriberInterface
 {
@@ -58,6 +58,8 @@ final class SyncCollection implements ServiceSubscriberInterface
         PhotoExtraFields::URL_ORIGINAL,
     ];
 
+    private ApiClientConfigFactory $clientCfgFactory;
+
     /**
      * By default, as the name "sync" implies, everything is synced. Sometimes quickly ignoring complete collections
      * may be desired (e.g. processing a long list and the server crashed).
@@ -70,6 +72,14 @@ final class SyncCollection implements ServiceSubscriberInterface
      * re-list collection anyway and verify items as a list.
      */
     public bool $trustUpdateTimestamps = true;
+
+
+    /**
+     * By default, we trust database Photo record. When this option is disabled files will be re-queued to the sink even
+     * if their index suggests they should be fine. This option can also be used when the sync was previously ran with
+     * noop-sink.
+     */
+    public bool $trustPhotoRecords = true;
 
     /**
      * When set it will attempt to reset/regenerate identity of both the Flickr API client (new key, new UA, new proxy)
@@ -98,6 +108,7 @@ final class SyncCollection implements ServiceSubscriberInterface
     public function syncCollection(CollectionIdentity $identity, callable $sink): bool
     {
         if (!($identity instanceof AlbumIdentity)) {
+            dd($identity);
             throw new RuntimeException('Not implemented yet');
         }
 
@@ -117,6 +128,16 @@ final class SyncCollection implements ServiceSubscriberInterface
         $localLastUpdated = null;
 
         if ($collection !== null) { //collection exists, but we don't know in what state - check it first
+            //This is early-return to prevent even metadata from being fetched
+            if ($collection->isSyncCompleted() && !$this->syncCompleted) {
+                $this->log->debug(
+                    '{id} sync skipped: collection completed at least one full sync and the setting explicitly ' .
+                    'disabled syncing completed collections',
+                    ['id' => $collection->getUserReadableId()]
+                );
+                return true;
+            }
+
             $statusCheck = $this->verifyCollectionState($collection); //this checks some static properties of collection
 
             if ($statusCheck !== null) {
@@ -143,32 +164,63 @@ final class SyncCollection implements ServiceSubscriberInterface
         $this->setPhotosetMetadata($collection, $apiInfo);
         $repo->save($collection, true);
 
-        $newLastUpdated = $collection->getDateLastUpdated();
-        if ($this->trustUpdateTimestamps) {
-            if ($newLastUpdated === null || ($localLastUpdated !== null && $newLastUpdated <= $localLastUpdated)) {
-                $this->log->debug('{id} sync skipped: collection was never updated', ['id' => $collection->getUserReadableId()]);
-                return true;
-            }
+        if (!$this->shouldSyncCollectionItems($collection, $localLastUpdated)) {
+            return true; //not syncing but not due to an error
+        }
 
-            $this->log->info('{id} will sync: local copy outdated ({ldate}) vs. remote ({rdate})',
-                             [
-                                 'id' => $collection->getUserReadableId(),
-                                 'ldate' => $localLastUpdated ?? 'never synced',
-                                 'rdate' => $newLastUpdated,
-                             ]
+        if (!$this->syncCollectionPhotos($collection, $this->getAlbumPhotos($identity), $sink)) {
+            $this->log->debug(
+                '{id} sync failed: see previous messages for details',
+                ['id' => $collection->getUserReadableId()]
             );
+            return false;
+        }
 
-        } else {
+        $collection->setDateSyncCompleted(new \DateTimeImmutable());
+        $repo->save($collection);
+
+        return true;
+
+        //todo: albums contain count_photos_* fields (all, public, friend etc) -> maybe there should be a warning if
+        // "total" isn't the same as the count? (i.e. we see less photos via API than count so probably lack of oauth)
+    }
+
+    private function shouldSyncCollectionItems(PhotoCollection $collection, ?\DateTimeInterface $localLastUpdated): bool
+    {
+        if (!$collection->isSyncCompleted()) {
+            $this->log->info(
+                '{id} will sync: local copy was never fully synced',
+                ['id' => $collection->getUserReadableId()]
+            );
+            return true;
+        }
+
+        if (!$this->trustUpdateTimestamps) {
             $this->log->info(
                 '{id} will forcefully sync: timestamps are ignored by setting',
                 ['id' => $collection->getUserReadableId()]
             );
+            return true;
         }
 
-        return $this->syncCollectionPhotos($collection, $this->getAlbumPhotos($identity), $sink);
+        $newLastUpdated = $collection->getDateLastUpdated();
+        if ($newLastUpdated === null || ($localLastUpdated !== null && $newLastUpdated <= $localLastUpdated)) {
+            $this->log->debug(
+                '{id} sync skipped: collection was synced at least once before and it was never updated',
+                ['id' => $collection->getUserReadableId()]
+            );
+            return false;
+        }
 
-        //todo: albums contain count_photos_* fields (all, public, friend etc) -> maybe there should be a warning if
-        // "total" isn't the same as the count? (i.e. we see less photos via API than count so probably lack of oauth)
+        $this->log->info('{id} will sync: local copy outdated ({ldate}) vs. remote ({rdate})',
+                         [
+                             'id' => $collection->getUserReadableId(),
+                             'ldate' => $localLastUpdated ?? 'never updated',
+                             'rdate' => $newLastUpdated,
+                         ]
+        );
+
+        return true;
     }
 
     /**
@@ -235,7 +287,14 @@ final class SyncCollection implements ServiceSubscriberInterface
     private function shouldSyncPhoto(int $photoId, bool $isNewLocalPhoto, Photo $localPhoto, ?\DateTimeInterface $localLastUpdated, PhotoDto $remotePhoto, PhotoSize $remoteSize): bool
     {
         if ($isNewLocalPhoto) {
-            $this->log->debug('Syncing photo id={phid}: new photo not yet synced');
+            $this->log->info('Syncing photo id={phid}: new photo not yet synced', ['phid' => $photoId]);
+            return true;
+        }
+
+        if (!$this->trustPhotoRecords) {
+            $this->log->info(
+                'Syncing photo id={phid}: setting enforces re-verification of photo records', ['phid' => $photoId]
+            );
             return true;
         }
 
@@ -244,14 +303,14 @@ final class SyncCollection implements ServiceSubscriberInterface
         $localSize = $localPhoto->getFileVersion();
         switch ($localSize->compareWith($remoteSize)) {
             case -1:
-                $this->log->debug(
+                $this->log->info(
                     'Syncing photo id={phid}: remote size ({rsize}) is larger than local ({lsize})',
                     ['phid' => $photoId, 'rsize' => $remoteSize->name, 'lsize' => $localSize->name]
                 );
                 return true;
 
             case 0:
-                $this->log->debug(
+                $this->log->info(
                     'Skip sync of photo id={phid}: remote size and local sizes the same ({size})',
                     ['phid' => $photoId, 'size' => $remoteSize->name]
                 );
@@ -270,7 +329,7 @@ final class SyncCollection implements ServiceSubscriberInterface
         $localCdnName = $this->urlParser->getStaticFilename($localPhoto->getCdnUrl());
         $remoteCdnName = $this->urlParser->getStaticFilename($remotePhoto->getSizeUrl($remoteSize));
         if (!$this->trustUpdateTimestamps && $localCdnName !== $remoteCdnName) {
-            $this->log->debug(
+            $this->log->info(
                 'Syncing photo id={phid}: remote CDN file ({rfile}) is different than local ({lfile})',
                 ['phid' => $photoId, 'rfile' => $remoteCdnName, 'lfile' => $localCdnName]
             );
@@ -280,7 +339,7 @@ final class SyncCollection implements ServiceSubscriberInterface
 
         if ($localLastUpdated !== null && isset($remotePhoto->dateUpdated) &&
             $remotePhoto->dateUpdated > $localLastUpdated) {
-            $this->log->debug(
+            $this->log->info(
                 'Syncing photo id={phid}: remote record is newer ({rdate}) than local ({ldate})',
                 ['phid' => $photoId, 'rdate' => $remotePhoto->dateUpdated, 'ldate' => $localLastUpdated]
             );
@@ -288,8 +347,8 @@ final class SyncCollection implements ServiceSubscriberInterface
             return true;
         }
 
-        $this->log->warning(
-            'Skip sync of photo id={phid}: remote and local records appear the same',
+        $this->log->info(
+            'Skip sync of photo id={phid}: remote and local records appear the same and file repair was not requested',
             ['phid' => $photoId]
         );
 
@@ -357,6 +416,20 @@ final class SyncCollection implements ServiceSubscriberInterface
         //We're not updating version here are presumably the caller has more knowledge about sizes etc
     }
 
+    private function getIdentitySwitchCallback(): ?callable
+    {
+        if (!$this->switchIdentities) {
+            return null;
+        }
+
+        return function (int $page): void {
+            $this->log->debug('Switching API identity during sync after page ' . $page);
+            $this->clientCfgFactory ??= $this->locator->get(ApiClientConfigFactory::class);
+            $cfg = $this->clientCfgFactory->getWithRandomClient();
+            $this->api = $this->api->withConfiguration($cfg);
+        };
+    }
+
     /**
      * @return iterable<PhotoDto>
      */
@@ -367,7 +440,8 @@ final class SyncCollection implements ServiceSubscriberInterface
                              $albumIdentity->ownerNSID,
                              $albumIdentity->setId,
                              PhotosetsEndpoint::MAX_PER_PAGE,
-                             self::PHOTO_EXTRAS
+                             self::PHOTO_EXTRAS,
+                             pageFinishCallback: $this->getIdentitySwitchCallback()
                          );
     }
 
@@ -399,7 +473,7 @@ final class SyncCollection implements ServiceSubscriberInterface
         }
 
         if ($collection->isWriteLocked()) {
-            $this->log->info(
+            $this->log->warning(
                 '{id} sync cannot complete: collection is write-locked',
                 ['id' => $collection->getUserReadableId()]
             );
@@ -428,7 +502,7 @@ final class SyncCollection implements ServiceSubscriberInterface
         }
 
         if ($photo->isWriteLocked()) {
-            $this->log->info(
+            $this->log->warning(
                 'Photo {id} sync cannot complete: collection is write-locked',
                 ['id' => $photo->getId()]
             );

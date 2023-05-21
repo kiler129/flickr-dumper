@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use App\Exception\LogicException;
 use App\Repository\Flickr\PhotoRepository;
 use App\Struct\PhotoSize;
 use Doctrine\DBAL\Types\Types;
@@ -243,6 +244,29 @@ class Photo
     public function isDeleted(): bool
     {
         return $this->status->deleted;
+    }
+
+    public function lockForWrite(): void
+    {
+        if ($this->status->writeLockedAt !== null) {
+            throw new LogicException(
+                \sprintf(
+                    'Photo %d is already write-locked since %s - cannot re-lock',
+                    $this->id,
+                    $this->status->writeLockedAt->format('Y-mt-d H:i:s')
+                )
+            );
+        }
+
+        $this->status->writeLockedAt = new \DateTimeImmutable();
+    }
+
+    public function unlockForWrite(bool $fsInSync): self
+    {
+        $this->status->writeLockedAt = null;
+        $this->status->filesystemInSync = $fsInSync;
+
+        return $this;
     }
 
     public function isWriteLocked(): bool
