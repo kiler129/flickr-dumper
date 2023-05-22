@@ -15,7 +15,7 @@ use App\Flickr\Client\FlickrApiClient;
 use App\Flickr\ClientEndpoint\PhotosetsEndpoint;
 use App\Flickr\Factory\ApiClientConfigFactory;
 use App\Flickr\Struct\Identity\AlbumIdentity;
-use App\Flickr\Struct\Identity\CollectionIdentity;
+use App\Flickr\Struct\Identity\MediaCollectionIdentity;
 use App\Flickr\Struct\Identity\OwnerAwareIdentity;
 use App\Flickr\Url\UrlParser;
 use App\Repository\Flickr\PhotoRepository;
@@ -105,11 +105,11 @@ final class SyncCollection implements ServiceSubscriberInterface
     /**
      * @param TSyncCallback $sink
      */
-    public function syncCollection(CollectionIdentity $identity, callable $sink): bool
+    public function syncCollection(MediaCollectionIdentity $identity, callable $sink): bool
     {
         if (!($identity instanceof AlbumIdentity)) {
-            dd($identity);
-            throw new RuntimeException('Not implemented yet');
+            dump($identity);
+            throw new RuntimeException('Not implemented yet: sync of ' . $identity::class);
         }
 
         $ret = $this->syncAlbum($identity, $sink);

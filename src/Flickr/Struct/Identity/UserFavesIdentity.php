@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace App\Flickr\Struct\Identity;
 
-use App\Flickr\Enum\CollectionType;
+use App\Flickr\Enum\MediaCollectionType;
 
-final class UserFavesIdentity extends CollectionIdentity implements OwnerAwareIdentity
+final class UserFavesIdentity extends MediaCollectionIdentity implements OwnerAwareIdentity
 {
     use OwnerAware;
 
@@ -13,6 +13,6 @@ final class UserFavesIdentity extends CollectionIdentity implements OwnerAwareId
     {
         $this->owner = $owner;
 
-        parent::__construct(CollectionType::USER_FAVES);
+        parent::__construct(MediaCollectionType::USER_FAVES);
     }
 }

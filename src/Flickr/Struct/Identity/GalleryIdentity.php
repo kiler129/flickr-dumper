@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace App\Flickr\Struct\Identity;
 
 use App\Exception\DomainException;
-use App\Flickr\Enum\CollectionType;
+use App\Flickr\Enum\MediaCollectionType;
 
-final class GalleryIdentity extends CollectionIdentity implements OwnerAwareIdentity
+final class GalleryIdentity extends MediaCollectionIdentity implements OwnerAwareIdentity
 {
     use OwnerAware;
 
@@ -14,7 +14,7 @@ final class GalleryIdentity extends CollectionIdentity implements OwnerAwareIden
         string $owner,
         public readonly string $setId,
     ) {
-        parent::__construct(CollectionType::GALLERY);
+        parent::__construct(MediaCollectionType::GALLERY);
 
         if ($owner === '' || $this->setId === '') {
             throw new DomainException(

@@ -18,13 +18,13 @@ namespace App\Flickr\Enum;
  *  - Update \App\Flickr\UseCase\SyncCollection to add new type
  *  - Search for usages of one of the cases :D
  */
-enum CollectionType: string
+enum MediaCollectionType: string
 {
     case USER_PHOTOSTREAM = 'user'; //not a real type-type, just lack of any type for the owner
     case USER_FAVES = 'faves';
     case ALBUM = 'album';
     case GALLERY = 'gallery';
-    case POOL = 'pool'; //I'm not sure if this is even a real type or a name for gallery photos? @todo
+    case POOL = 'pool';
 
     //These forms are using in collection view
     //This belongs more to URLs but is here to ensure it gets updated when new type is added
@@ -33,8 +33,10 @@ enum CollectionType: string
         self::USER_FAVES->value => 'favorites',
         self::ALBUM->value => 'albums',
         self::GALLERY->value => 'galleries',
-        //self::POOL->value => ????
+        //self::POOL->value => pools/groups aren't owned by a user so they have no plural form
     ];
+
+
 
     public const CASES_REGEX_LIST =
         self::USER_FAVES->value . '|' .
@@ -47,7 +49,7 @@ enum CollectionType: string
         self::CASES_PLURAL[self::USER_FAVES->value] . '|' .
         self::CASES_PLURAL[self::ALBUM->value] . '|' .
         self::CASES_PLURAL[self::GALLERY->value] //. '|' .
-        //self::CASES_PLURAL[self::POOL->value] => unknown
+        //self::CASES_PLURAL[self::POOL->value] => groups have a completely different link
     ;
 
     /**

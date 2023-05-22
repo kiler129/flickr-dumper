@@ -4,15 +4,19 @@ declare(strict_types=1);
 namespace App\Flickr\Url;
 
 use App\Exception\Flickr\InvalidUrlException;
-use App\Flickr\Enum\CollectionType;
+use App\Exception\LogicException;
+use App\Flickr\Enum\MediaCollectionType;
 use App\Flickr\Struct\Identity\AlbumIdentity;
-use App\Flickr\Struct\Identity\CollectionIdentity;
+use App\Flickr\Struct\Identity\MediaCollectionIdentity;
+use App\Flickr\Struct\Identity\GalleryIdentity;
+use App\Flickr\Struct\Identity\MediaIdentity;
+use App\Flickr\Struct\Identity\PoolIdentity;
 use App\Flickr\Struct\Identity\UserFavesIdentity;
 use App\Flickr\Struct\Identity\UserPhotostreamIdentity;
 
 final class UrlParser
 {
-    private const BASE_URI_REGEX_CHUNK = '^https?:\/\/.*flickr\.com\/';
+    private const BASE_URI_REGEX_CHUNK = 'https?://(?:[\w\-]+\.)?flickr\.com';
 
     /**
      * Matches direct link to a photo viewer. Optionally the photo can present in a context/container (see below)
@@ -62,8 +66,8 @@ final class UrlParser
             '(?P<owner>[^\/]+)\/' .
             '(?P<photoId>\d+)' .
             '(?:\/in\/' .
-                '(?P<colType>(?:' . CollectionType::CASES_REGEX_LIST . '))' .
-                '(?:-(?P<colOwner>[^-]+))?' . //owner is only present sometimes
+                '(?P<colType>(?:' . MediaCollectionType::CASES_REGEX_LIST . '))' .
+        '(?:-(?P<colOwner>[^-]+))?' . //owner is only present sometimes
                 '-(?P<colId>[^\/]+)' . //if "/in/" part exists it always has colType and colId
             ')?' . //the "/in/"-something is optional
         '/i';
@@ -104,12 +108,47 @@ final class UrlParser
             'photos\/' .
             '(?P<owner>[^\/]+)' .
             '(?:\/' .
-                '(?P<colTypePlural>(?:' . CollectionType::CASES_PLURAL_REGEX_LIST . '))' .
+                '(?P<colTypePlural>(?:' . MediaCollectionType::CASES_PLURAL_REGEX_LIST . '))' .
                 '(?:\/(?P<colId>[^\/$]+))?' . //colId may be empty even if type is present!
             ')?' . //the whole type+id is optional
         '/i';
 
 
+    public const URL_REGEX =
+        '#^' .
+            'https?://(?:[\w\-]+\.)?flickr\.com' .
+            '/(?:(?P<type>photos)/(?P<user>[^/]+)' . //some user photos
+                '(?:' . //picking between mediaID and colTypePlural and nothing (i.e. user's photostream/all photos)
+                        '(?:/(?P<mediaId>\d+)' . //single photo, e.g. "123" in "/photos/123"
+                            '(?:/in/(?:' . //picking between gallery and non-gallery types
+                                    '(?:(?P<colType>' . MediaCollectionType::GALLERY->value . ')' .//collection w/owner AND id
+                                        '(?:-(?P<colOwner>[^-]+))?' . //owner is only present when collection can be owner by others
+                                        '-(?P<colId>[^/]+)' .
+                                    ')' . //end of colType=gallery
+                                '|' .
+                                    '(?:(?P<colType>(?:' . MediaCollectionType::ALBUM->value . '))' .//self-owned collection(s)
+                                        '-(?P<colId>[^/]+)' .
+                                    ')' .
+                                '|' .
+                                    '(?:(?P<colType>(?:' . MediaCollectionType::USER_FAVES->value . '|' . MediaCollectionType::POOL->value . '))' .
+                                        '-(?P<colOwner>[^/]+)' .
+                                    ')' .
+                            '))?' . // end of /in/<colType>, that is optional
+                        ')' . //end of photo/video view with id
+                    '|' . //single photo view vs. collection(s) view
+                        //e.g. "albums" in "/photos/flickr/albums"
+                        '(?:/(?P<colTypePlural>(?:' . MediaCollectionType::CASES_PLURAL_REGEX_LIST . '))' .
+                             '(?:/(?P<colId>\d+))?' . //single album, e.g. album 123 in "/photos/flickr/albums/123"
+                            '(?:/page(?P<page>\d+))?' . //pagination for photos in collection or multiple collections
+                        ')' . //end of collection colTypePlural (if not present it means user photostream or a single photo)
+                    '|' . //collection(s) view vs nothing (i.e. photostream)
+                    '' . //photostream => it will be empty [left for clarity of intentions]
+                ')' .
+
+            ')|' . //end of /<type>photos/<user>
+            '/(?:(?P<type>groups)/(?P<colOwner>[^/]+))(?:/pool)?(?:/page(?P<page>\d+))?|' .
+            '/(?:(?P<type>search)(?:/\?(?P<searchQuery>.+))?)' .
+        '/?#Ji';
 
     //public function getPhotosetIdentity(string $url): AlbumIdentity
     //{
@@ -156,34 +195,102 @@ final class UrlParser
     //    return new AlbumIdentity($col['colId'], $col['owner']);
     //}
 
-    public function getCollectionIdentity(string $url): CollectionIdentity
+    //public function getCollectionIdentity(string $url): CollectionIdentity
+    //{
+    //    //Collection URL parsing is more permissive and can return e.g. user photostream for view URL, so it should be
+    //    // checked second.... screw that: this is actually wrong
+    //    //In this one we should prioritize COLLECTIONS... so we need two separate regexes for that but one should
+    //    //match STRICTLY collections and never match individual photos really
+    //
+    //    $data = $this->parsePhotoViewUrl($url);
+    //    if ($data !== null && $data['colType'] ?? '' !== '') {
+    //        $type = CollectionType::from($data['colType']);
+    //    } else {
+    //        $data = $this->parseCollectionUrl($url);
+    //        if ($data === null) {
+    //            throw new InvalidUrlException('URL is neither a link to a collection nor a photo in a collection');
+    //        }
+    //
+    //        $type = CollectionType::fromPlural($col['colTypePlural'] ?? '');
+    //    }
+    //
+    //    //If you get a DomainException here it's possible that a URL to a list of albums was passed instead of e.g.
+    //    // single album
+    //    return match ($type) {
+    //        CollectionType::USER_PHOTOSTREAM => new UserPhotostreamIdentity($data['owner']),
+    //        CollectionType::USER_FAVES => new UserFavesIdentity($data['owner']),
+    //        CollectionType::ALBUM => new AlbumIdentity($data['owner'], $data['colId']),
+    //        CollectionType::GALLERY => new AlbumIdentity($data['owner'], $data['colId']),
+    //        //pool handling is unknown
+    //    };
+    //}
+    public function getMediaCollectionIdentity(string $url): MediaCollectionIdentity|null
     {
-        //Collection URL parsing is more permissive and can return e.g. user photostream for view URL, so it should be
-        // checked second.... screw that: this is actually wrong
-        //In this one we should prioritize COLLECTIONS... so we need two separate regexes for that but one should
-        //match STRICTLY collections and never match individual photos really
-
-        $data = $this->parsePhotoViewUrl($url);
-        if ($data !== null && $data['colType'] ?? '' !== '') {
-            $type = CollectionType::from($data['colType']);
-        } else {
-            $data = $this->parseCollectionUrl($url);
-            if ($data === null) {
-                throw new InvalidUrlException('URL is neither a link to a collection nor a photo in a collection');
-            }
-
-            $type = CollectionType::fromPlural($col['colTypePlural'] ?? '');
+        if (\preg_match(UrlParser::URL_REGEX, $url, $result, \PREG_UNMATCHED_AS_NULL) !== 1) {
+            return null;
         }
 
-        //If you get a DomainException here it's possible that a URL to a list of albums was passed instead of e.g.
-        // single album
-        return match ($type) {
-            CollectionType::USER_PHOTOSTREAM => new UserPhotostreamIdentity($data['owner']),
-            CollectionType::USER_FAVES => new UserFavesIdentity($data['owner']),
-            CollectionType::ALBUM => new AlbumIdentity($data['owner'], $data['colId']),
-            CollectionType::GALLERY => new AlbumIdentity($data['owner'], $data['colId']),
-            //pool handling is unknown
-        };
+        if ($result['type'] === 'groups') {
+            return new PoolIdentity($result['colOwner']);
+        }
+
+        if ($result['type'] !== 'photos') {
+            return null;
+        }
+
+        //No 2nd-level collection type => user photostream
+        if ($result['colType'] === null && $result['colTypePlural'] === null) {
+            return new UserPhotostreamIdentity($result['user']);
+        }
+
+        //We should never have both. If we do it's a broken regex.
+        \assert($result['colType'] === null || $result['colTypePlural'] === null);
+
+        $isPlural = $result['colTypePlural'] !== null;
+        try {
+            $colType = $isPlural
+                ? MediaCollectionType::fromPlural($result['colTypePlural'])
+                : MediaCollectionType::from($result['colType']);
+        } catch (\ValueError $e) {
+            throw new InvalidUrlException(
+                \sprintf(
+                    'Invalid %s collection type "%s"',
+                    $isPlural ? 'plural' : 'singular',
+                    $isPlural ? $result['colTypePlural'] : $result['colType']
+                ), $e->getCode(), $e
+            );
+        }
+
+        try {
+            return match ($colType) {
+                MediaCollectionType::ALBUM => $result['colId'] === null
+                    ? null  //this would be a collection of albums
+                    : new AlbumIdentity($result['user'], $result['colId']),
+                MediaCollectionType::USER_FAVES => new UserFavesIdentity($result['user']),
+                MediaCollectionType::GALLERY => $result['colId'] === null
+                    ? null //this would be a collection of galleries
+                    : new GalleryIdentity($result['colOwner'] ?? $result['user'], $result['colId']),
+                MediaCollectionType::POOL => new PoolIdentity($result['colOwner']),
+            };
+        } catch(\Throwable $e) {
+            throw new InvalidUrlException(
+                \sprintf(
+                    'Cannot create identity from URL "%s": %s',
+                    $url,
+                    $e->getMessage()
+                ), $e->getCode(), $e
+            );
+        }
+    }
+
+    public function getMediaIdentity(string $url): MediaIdentity|null
+    {
+        if (\preg_match(UrlParser::URL_REGEX, $url, $result, \PREG_UNMATCHED_AS_NULL) !== 1 ||
+            $result['type'] !== 'photos' || $result['mediaId'] === null) {
+            return null;
+        }
+
+        return new MediaIdentity($result['user'], (int)$result['mediaId']);
     }
 
     /**
@@ -205,7 +312,8 @@ final class UrlParser
 
     public function isWebUrl(string $url): bool
     {
-        return \preg_match('/' . self::BASE_URI_REGEX_CHUNK . '/i', $url) === 1;
+        $regex = '#^' . self::BASE_URI_REGEX_CHUNK . '#i';
+        return \preg_match($regex, $url) === 1;
     }
 
     private function parseCollectionUrl(string $url): ?array

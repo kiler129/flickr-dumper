@@ -6,17 +6,14 @@ namespace App\Flickr\Struct\Identity;
 use App\Exception\DomainException;
 use App\Flickr\Enum\MediaCollectionType;
 
-final class AlbumIdentity extends MediaCollectionIdentity implements OwnerAwareIdentity
+final class PoolIdentity extends MediaCollectionIdentity
 {
-    use OwnerAware;
-
     public function __construct(
-        string $owner,
-        public readonly string $setId,
+        public readonly string $poolId,
     ) {
-        parent::__construct(MediaCollectionType::ALBUM);
+        parent::__construct(MediaCollectionType::POOL);
 
-        if ($owner === '' || $this->setId === '') {
+        if ($this->poolId === '') {
             throw new DomainException(
                 \sprintf(
                     '%s requires owner & setId to be non-empty (got %s)',
@@ -25,7 +22,5 @@ final class AlbumIdentity extends MediaCollectionIdentity implements OwnerAwareI
                 )
             );
         }
-
-        $this->owner = $owner;
     }
 }

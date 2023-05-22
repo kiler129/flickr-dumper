@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\Entity\Flickr\Photo;
-use App\Flickr\Enum\CollectionType;
+use App\Flickr\Enum\MediaCollectionType;
 use App\Flickr\Struct\Identity\AlbumIdentity;
-use App\Flickr\Struct\Identity\CollectionIdentity;
+use App\Flickr\Struct\Identity\MediaCollectionIdentity;
 use App\Flickr\Struct\Identity\UserFavesIdentity;
 use App\Flickr\Struct\Identity\UserPhotostreamIdentity;
 use App\Flickr\Url\UrlParser;
@@ -68,7 +68,7 @@ class SyncCollectionCommand extends Command
 
     protected function configure()
     {
-        $types = implode('/', CollectionType::valuesAsList());
+        $types = implode('/', MediaCollectionType::valuesAsList());
         $this->addOption(
                 'user-id',
                 null,
@@ -258,30 +258,40 @@ class SyncCollectionCommand extends Command
         }
     }
 
-    private function getCollectionIdentity(InputInterface $input): ?CollectionIdentity
+    private function getCollectionIdentity(InputInterface $input): ?MediaCollectionIdentity
     {
         $collection = (string)$input->getArgument('collection');
 
         if ($collection !== '' && $this->urlParser->isWebUrl($collection)) { //User passed URL
-            return $this->urlParser->getCollectionIdentity($collection);
+            $urlCol = $this->urlParser->getMediaCollectionIdentity($collection);
+
+            if ($urlCol === null) {
+                $this->io->error('The URL passed do not seem to point to a single collection. Make sure ' .
+                                 'you did not pass a link to a group of collection (e.g. all user\'s albums) nor ' .
+                                 'to just a single photo.');
+
+                return null;
+            }
+
+            return $urlCol;
         }
 
         $nsid = (string)$input->getOption('user-id');
         if ($nsid === '') {
             $this->io->error(
-                'Collection has been passed as an ID. ' .
+                'Collection has been passed as an ID (' . $collection . '). ' .
                 'When URL isn\'t used you need to specify user NSID using --user-id'
             );
 
             return null;
         }
 
-        $type = CollectionType::tryFrom((string)$input->getOption('type'));
+        $type = MediaCollectionType::tryFrom((string)$input->getOption('type'));
         return match ($type) {
-            CollectionType::USER_PHOTOSTREAM => new UserPhotostreamIdentity($nsid),
-            CollectionType::USER_FAVES => new UserFavesIdentity($nsid),
-            CollectionType::ALBUM => new AlbumIdentity($nsid, $collection),
-            CollectionType::GALLERY => new AlbumIdentity($nsid, $collection),
+            MediaCollectionType::USER_PHOTOSTREAM => new UserPhotostreamIdentity($nsid),
+            MediaCollectionType::USER_FAVES => new UserFavesIdentity($nsid),
+            MediaCollectionType::ALBUM => new AlbumIdentity($nsid, $collection),
+            MediaCollectionType::GALLERY => new AlbumIdentity($nsid, $collection),
             //pool handling is unknown
         };
     }
