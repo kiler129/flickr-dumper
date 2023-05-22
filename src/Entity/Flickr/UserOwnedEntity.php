@@ -5,6 +5,5 @@ namespace App\Entity\Flickr;
 
 interface UserOwnedEntity
 {
-    public function getOwner(): ?User;
-    public function setOwner(?User $owner): self;
+    public function getOwner(): User;
 }

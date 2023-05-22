@@ -7,7 +7,6 @@ use App\Flickr\Client\FlickrApiClient;
 use App\Flickr\Enum\MediaType;
 use App\Flickr\Enum\PrivacyLevel;
 use App\Flickr\Struct\ApiResponse;
-use App\Struct\PhotoDto;
 
 /**
  * Photosets aka albums

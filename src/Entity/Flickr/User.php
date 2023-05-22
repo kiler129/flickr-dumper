@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use App\Exception\LogicException;
 use App\Repository\Flickr\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -32,6 +33,10 @@ class User
 
     #[ORM\OneToMany(mappedBy: 'owner', targetEntity: Photoset::class)]
     private Collection $photosets;
+
+    #[ORM\OneToOne(mappedBy: 'owner', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\JoinColumn(referencedColumnName: 'owner_id')]
+    private ?UserFavorites $favorites = null;
 
     public function __construct(string $nsid, string $userName, ?string $screenName = null)
     {
@@ -108,5 +113,27 @@ class User
     public function getPhotosets(): Collection
     {
         return $this->photosets;
+    }
+
+    public function getFavorites(): ?UserFavorites
+    {
+        return $this->favorites;
+    }
+
+    public function setFavorites(UserFavorites $favorites): self
+    {
+        if ($favorites->getOwner() !== $this) {
+            throw new LogicException(
+                \sprintf(
+                    'You cannot assign favorites of user ID=%s to user ID=%s',
+                    $favorites->getOwner()->getNsid(),
+                    $this->getNsid()
+                )
+            );
+        }
+
+        $this->favorites = $favorites;
+
+        return $this;
     }
 }

@@ -8,9 +8,9 @@ use App\Entity\Flickr\User;
 use App\Exception\DomainException;
 use App\Flickr\Client\FlickrApiClient;
 use App\Flickr\Struct\Identity\UserIdentity;
+use App\Flickr\Struct\PhotoDto;
 use App\Flickr\Url\UrlGenerator;
 use App\Repository\Flickr\UserRepository;
-use App\Struct\PhotoDto;
 use Psr\Log\LoggerInterface;
 
 class ResolveOwner
@@ -38,8 +38,8 @@ class ResolveOwner
         if ($foundIn::ownerOwnsPhotos()) {
             $owner = $foundIn->getOwner();
             $this->log->debug(
-                'Owner id={oid} of photo id={phid} taken from collection {colType}<{colid}>',
-                ['oid' => $owner->getNsid(), 'phid' => $photoDto->id, 'colType' => $foundIn::class, 'colid' => $foundIn->getId()]
+                'Owner id={oid} of photo id={phid} taken from collection {colType}',
+                ['oid' => $owner->getNsid(), 'phid' => $photoDto->id, 'colType' => $foundIn::class]
             );
 
             return $owner;

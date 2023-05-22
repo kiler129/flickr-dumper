@@ -5,6 +5,7 @@ namespace App\Flickr\Client;
 
 use App\Exception\Api\BadApiMethodCallException;
 use App\Exception\Api\TransportException;
+use App\Flickr\ClientEndpoint\FavoritesEndpoint;
 use App\Flickr\ClientEndpoint\PandaEndpoint;
 use App\Flickr\ClientEndpoint\PhotosetsEndpoint;
 use App\Flickr\ClientEndpoint\TestEndpoint;
@@ -25,6 +26,11 @@ final class FlickrApiClient
 
     public function __construct(private HttpClientInterface $httpClient, private ApiClientConfig $config, private ?LoggerInterface $flickrApiLogger)
     {
+    }
+
+    public function getFavorites(): FavoritesEndpoint
+    {
+        return $this->favorites ??= new FavoritesEndpoint($this);
     }
 
     public function getPanda(): PandaEndpoint

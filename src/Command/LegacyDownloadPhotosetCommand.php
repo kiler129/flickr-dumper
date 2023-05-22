@@ -6,9 +6,9 @@ namespace App\Command;
 use App\Factory\HttpClientFactory;
 use App\Flickr\BaseApiClient;
 use App\Flickr\PhotoSets;
+use App\Flickr\Struct\PhotoDto;
 use App\Flickr\Urls;
 use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoDto;
 use App\Util\NameGenerator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -16,9 +16,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(
     name: 'legacy-flickr:download-photoset',

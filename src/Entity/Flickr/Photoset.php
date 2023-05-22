@@ -12,8 +12,11 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\String\UnicodeString;
 
 #[ORM\Entity(repositoryClass: PhotosetRepository::class)]
-class Photoset implements PhotoCollection, UserOwnedEntity
+class Photoset implements PhotoCollection, UserOwnedEntity, Syncable
 {
+    use PhotoCollectionFragment;
+    use SyncableFragment;
+
     #[ORM\Id]
     #[ORM\Column]
     private int $id;
@@ -30,21 +33,12 @@ class Photoset implements PhotoCollection, UserOwnedEntity
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $dateLastUpdated = null;
 
-    #[ORM\Column]
-    private \DateTimeImmutable $dateLastRetrieved;
-
-    #[ORM\Column(nullable: true)]
-    private ?\DateTimeImmutable $dateSyncCompleted = null;
-
     #[ORM\ManyToOne(inversedBy: 'photosets')]
     #[ORM\JoinColumn(nullable: false, referencedColumnName: 'nsid')]
     private User $owner;
 
     #[ORM\ManyToMany(targetEntity: Photo::class, fetch: 'EXTRA_LAZY')]
     private Collection $photos;
-
-    #[ORM\Embedded]
-    private CollectionStatus $status;
 
     #[ORM\Column]
     private array $apiData = [];
@@ -130,38 +124,6 @@ class Photoset implements PhotoCollection, UserOwnedEntity
         return $this;
     }
 
-    public function getDateLastRetrieved(): \DateTimeImmutable
-    {
-        return $this->dateLastRetrieved;
-    }
-
-    public function setDateLastRetrieved(\DateTimeInterface $dateLastRetrieved): self
-    {
-        if (!($dateLastRetrieved instanceof \DateTimeImmutable)) {
-            $dateLastRetrieved = \DateTimeImmutable::createFromInterface($dateLastRetrieved);
-        }
-
-        $this->dateLastRetrieved = $dateLastRetrieved;
-
-        return $this;
-    }
-
-    public function getDateSyncCompleted(): \DateTimeImmutable
-    {
-        return $this->dateSyncCompleted;
-    }
-
-    public function setDateSyncCompleted(?\DateTimeInterface $dateSyncCompleted): self
-    {
-        if ($dateSyncCompleted !== null && !($dateSyncCompleted instanceof \DateTimeImmutable)) {
-            $dateSyncCompleted = \DateTimeImmutable::createFromInterface($dateSyncCompleted);
-        }
-
-        $this->dateSyncCompleted = $dateSyncCompleted;
-
-        return $this;
-    }
-
     public function getOwner(): User
     {
         return $this->owner;
@@ -170,30 +132,6 @@ class Photoset implements PhotoCollection, UserOwnedEntity
     public function setOwner(?User $owner): self
     {
         $this->owner = $owner;
-
-        return $this;
-    }
-
-    /**
-     * @return Collection<int, Photo>
-     */
-    public function getPhotos(): Collection
-    {
-        return $this->photos;
-    }
-
-    public function addPhoto(Photo $photo): self
-    {
-        if (!$this->photos->contains($photo)) {
-            $this->photos->add($photo);
-        }
-
-        return $this;
-    }
-
-    public function removePhoto(Photo $photo): self
-    {
-        $this->photos->removeElement($photo);
 
         return $this;
     }
@@ -208,48 +146,6 @@ class Photoset implements PhotoCollection, UserOwnedEntity
         $this->apiData = $apiData;
 
         return $this;
-    }
-
-    public function isSyncCompleted(): bool
-    {
-        return $this->dateSyncCompleted !== null;
-    }
-
-    public function isBlacklisted(): bool
-    {
-        return $this->status->blacklisted;
-    }
-
-    public function isDeleted(): bool
-    {
-        return $this->status->deleted;
-    }
-
-    public function lockForWrite(): void
-    {
-        if ($this->status->writeLockedAt !== null) {
-            throw new LogicException(
-                \sprintf(
-                    'Photoset %d is already write-locked since %s - cannot re-lock',
-                    $this->id,
-                    $this->status->writeLockedAt->format('Y-mt-d H:i:s')
-                )
-            );
-        }
-
-        $this->status->writeLockedAt = new \DateTimeImmutable();
-    }
-
-    public function unlockForWrite(): self
-    {
-        $this->status->writeLockedAt = null;
-
-        return $this;
-    }
-
-    public function isWriteLocked(): bool
-    {
-        return $this->status->writeLockedAt !== null;
     }
 
     public static function ownerOwnsPhotos(): bool

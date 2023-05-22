@@ -16,7 +16,7 @@ use Doctrine\Persistence\ManagerRegistry;
  * @method Photoset[]    findAll()
  * @method Photoset[]    findBy(array $criteria, array $orderBy = null, $limit = null, $offset = null)
  */
-class PhotosetRepository extends ServiceEntityRepository implements CollectionRepository
+class PhotosetRepository extends PhotoCollectionRepository
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -40,41 +40,4 @@ class PhotosetRepository extends ServiceEntityRepository implements CollectionRe
             $this->getEntityManager()->flush();
         }
     }
-
-    /**
-     * @return list<Photoset>
-     */
-    public function findLocked(): array
-    {
-        return $this->createQueryBuilder('p')
-                    ->andWhere('p.status.writeLockedAt IS NOT NULL')
-                    ->getQuery()
-                    ->getResult()
-            ;
-    }
-
-//    /**
-//     * @return Photoset[] Returns an array of Photoset objects
-//     */
-//    public function findByExampleField($value): array
-//    {
-//        return $this->createQueryBuilder('p')
-//            ->andWhere('p.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->orderBy('p.id', 'ASC')
-//            ->setMaxResults(10)
-//            ->getQuery()
-//            ->getResult()
-//        ;
-//    }
-
-//    public function findOneBySomeField($value): ?Photoset
-//    {
-//        return $this->createQueryBuilder('p')
-//            ->andWhere('p.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
 }

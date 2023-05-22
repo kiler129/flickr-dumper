@@ -29,6 +29,11 @@ services:
             $flickrApiHttpClient: '@app.flickr_api_httpclient'
             $flickrDownloadHttpClient: '@app.flickr_download_httpclient'
 
+    _instanceof:
+        # usecase has state for options
+        App\UseCase\Sync\SyncCollectionStrategy:
+            shared: false
+
     App\:
         resource: '../src/'
         exclude:
@@ -45,13 +50,8 @@ services:
 
     App\Command\SyncCollectionCommand:
         arguments:
-            $syncCollection: !service_closure '@App\UseCase\SyncCollection'
             $fetchPhotoToDisk: !service_closure '@App\UseCase\FetchPhotoToDisk'
             $consoleHandler: '@monolog.handler.console'
-
-    # usecase has state for options
-    App\UseCase\SyncCollection:
-        shared: false
 
     # usecase has state for options
     App\UseCase\FetchPhotoToDisk:

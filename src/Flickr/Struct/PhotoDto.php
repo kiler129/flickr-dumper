@@ -1,9 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Struct;
+namespace App\Flickr\Struct;
 
 use App\Exception\DomainException;
+use App\Struct\PhotoExtraFields;
+use App\Struct\PhotoSize;
 
 /**
  * Simple DTO to map array response from API to a typed object
@@ -38,8 +40,6 @@ use App\Exception\DomainException;
  * @property-read float $latitude
  * @property-read float $longitude
  * @property-read int $accuracy
- *
- * @deprecated Move to Flickr\Struct\PhotoDTO
  */
 final class PhotoDto
 {

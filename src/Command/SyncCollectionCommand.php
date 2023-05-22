@@ -4,14 +4,16 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\Entity\Flickr\Photo;
+use App\Factory\SyncStrategyFactory;
 use App\Flickr\Enum\MediaCollectionType;
 use App\Flickr\Struct\Identity\AlbumIdentity;
+use App\Flickr\Struct\Identity\GalleryIdentity;
 use App\Flickr\Struct\Identity\MediaCollectionIdentity;
+use App\Flickr\Struct\Identity\PoolIdentity;
 use App\Flickr\Struct\Identity\UserFavesIdentity;
 use App\Flickr\Struct\Identity\UserPhotostreamIdentity;
 use App\Flickr\Url\UrlParser;
 use App\Struct\DownloadJobStatus;
-use App\UseCase\SyncCollection;
 use App\UseCase\FetchPhotoToDisk;
 use Psr\Log\LoggerInterface;
 use Symfony\Bridge\Monolog\Handler\ConsoleHandler;
@@ -53,14 +55,13 @@ class SyncCollectionCommand extends Command
     private array $availableScreens = [];
 
     /**
-     * @param callable(): SyncCollection   $syncCollection
-     * @param callable(): FetchPhotoToDisk $fetchPhotoToDisk
+     * @param callable(): FetchPhotoToDisk    $fetchPhotoToDisk
      */
     public function __construct(
         private LoggerInterface $log,
         private ConsoleHandler $consoleHandler,
         private UrlParser $urlParser,
-        private \Closure $syncCollection,
+        private SyncStrategyFactory $syncFactory,
         private \Closure $fetchPhotoToDisk,
     ) {
         parent::__construct();
@@ -121,42 +122,6 @@ class SyncCollectionCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        //$this->progressOutput = $output;
-        //
-        //$logSection = $output->section();
-        //$this->consoleHandler->setOutput($logSection);
-        //
-        //$one = new DownloadJobStatus(1, [$this, 'renderStatusProgress']);
-        //$two = new DownloadJobStatus(2, [$this, 'renderStatusProgress']);
-        //$one->report();
-        //$two->report();
-        //
-        //$one->bytesTotal = $two->bytesTotal = 100;
-        //$one->bytesDownloaded = $two->bytesDownloaded = 0;
-        //
-        //
-        //$i = 0;
-        //while (++$i < 100) {
-        //    $one->bytesDownloaded = $i;
-        //    $one->report();
-        //
-        //    if ($i % 2 === 0) {
-        //        $two->bytesDownloaded = $i / 2;
-        //        $two->report();
-        //    }
-        //
-        //    if ($i % 10 === 0) {
-        //        $this->log->info('test ' . $i);
-        //    }
-        //
-        //    usleep(50000);
-        //}
-        //
-        //die;
-
-
-
-
         $this->io = new SymfonyStyle($input, $output);
 
         $identity = $this->getCollectionIdentity($input);
@@ -166,7 +131,7 @@ class SyncCollectionCommand extends Command
             return Command::FAILURE;
         }
 
-        $syncUC = ($this->syncCollection)(); //this will always get a new instance
+        $syncUC = $this->syncFactory->createForCollection($identity); //this will always get a new instance
         $syncUC->syncCompleted = !$input->getOption('ignore-completed');
         $syncUC->trustUpdateTimestamps = !$input->getOption('distrust-timestamps');
         $syncUC->trustPhotoRecords = !$input->getOption('repair-files');
@@ -291,8 +256,8 @@ class SyncCollectionCommand extends Command
             MediaCollectionType::USER_PHOTOSTREAM => new UserPhotostreamIdentity($nsid),
             MediaCollectionType::USER_FAVES => new UserFavesIdentity($nsid),
             MediaCollectionType::ALBUM => new AlbumIdentity($nsid, $collection),
-            MediaCollectionType::GALLERY => new AlbumIdentity($nsid, $collection),
-            //pool handling is unknown
+            MediaCollectionType::GALLERY => new GalleryIdentity($nsid, $collection),
+            MediaCollectionType::POOL => new PoolIdentity($collection)
         };
     }
 }

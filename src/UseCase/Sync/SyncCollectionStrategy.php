@@ -1,41 +1,32 @@
 <?php
 declare(strict_types=1);
 
-namespace App\UseCase;
+namespace App\UseCase\Sync;
 
 use App\Entity\Flickr\Photo;
 use App\Entity\Flickr\PhotoCollection;
-use App\Entity\Flickr\Photoset;
 use App\Entity\Flickr\User;
 use App\Entity\Flickr\UserOwnedEntity;
-use App\Exception\RuntimeException;
+use App\Exception\InvalidArgumentException;
 use App\Exception\SyncException;
-use App\Filesystem\StorageProvider;
 use App\Flickr\Client\FlickrApiClient;
-use App\Flickr\ClientEndpoint\PhotosetsEndpoint;
 use App\Flickr\Factory\ApiClientConfigFactory;
-use App\Flickr\Struct\Identity\AlbumIdentity;
 use App\Flickr\Struct\Identity\MediaCollectionIdentity;
 use App\Flickr\Struct\Identity\OwnerAwareIdentity;
+use App\Flickr\Struct\PhotoDto;
 use App\Flickr\Url\UrlParser;
 use App\Repository\Flickr\PhotoRepository;
-use App\Repository\Flickr\PhotosetRepository;
 use App\Repository\Flickr\UserRepository;
 use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoDto;
 use App\Struct\PhotoSize;
+use App\UseCase\ResolveOwner;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\Persistence\ObjectManager;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
-use Symfony\Contracts\Service\ServiceSubscriberInterface;
 
-/**
- * @phpstan-import-type TSyncCallback from FetchPhotoToDisk
- */
-final class SyncCollection implements ServiceSubscriberInterface
+abstract class SyncCollectionStrategy
 {
-    private const PHOTO_EXTRAS = [
+    protected const PHOTO_EXTRAS = [
         PhotoExtraFields::DESCRIPTION,
         PhotoExtraFields::DATE_UPLOAD,
         PhotoExtraFields::DATE_TAKEN,
@@ -91,101 +82,119 @@ final class SyncCollection implements ServiceSubscriberInterface
 
     public function __construct(
         private ContainerInterface $locator,
-        private FlickrApiClient $api,
-        private LoggerInterface $log,
+        protected FlickrApiClient $api,
+        protected LoggerInterface $log,
         private UserRepository $userRepo,
         private PhotoRepository $photoRepo,
         private ResolveOwner $resolveOwner,
         private UrlParser $urlParser,
-        private EntityManagerInterface $om
-    )
-    {
+        private EntityManagerInterface $om,
+    ) {
     }
 
-    /**
-     * @param TSyncCallback $sink
-     */
-    public function syncCollection(MediaCollectionIdentity $identity, callable $sink): bool
+    abstract static protected function supportsIdentity(MediaCollectionIdentity $identity): bool;
+
+    abstract protected function syncSpecificCollection(MediaCollectionIdentity $identity, callable $sink): bool;
+
+    final public function syncCollection(MediaCollectionIdentity $identity, callable $sink): bool
     {
-        if (!($identity instanceof AlbumIdentity)) {
-            dump($identity);
-            throw new RuntimeException('Not implemented yet: sync of ' . $identity::class);
+        if (!static::supportsIdentity($identity)) {
+            throw new InvalidArgumentException(
+                \sprintf('%s does not support %s - did you pick wrong strategy?', $this::class, $identity::class)
+            );
         }
 
-        $ret = $this->syncAlbum($identity, $sink);
-
+        $result = $this->syncSpecificCollection($identity, $sink);
         $this->om->flush();
-        return $ret;
+
+        return $result;
+    }
+
+    protected function getOwnerUser(string $nsid): User
+    {
+        $user = $this->userRepo->find($nsid);
+        if ($user === null) {
+            $identity = $this->resolveOwner->lookupUserByPathAlias($nsid);
+            $user = new User($identity->nsid, $identity->userName, $identity->screenName);
+            $this->userRepo->save($user, true);
+        }
+
+        return $user;
     }
 
     /**
-     * @param TSyncCallback $sink
+     * Ensures that collection identifier that is owner aware has a complete owner identity (i.e. NSID)
      */
-    public function syncAlbum(AlbumIdentity $identity, callable $sink): bool
+    protected function ensureOwnerNSID(OwnerAwareIdentity $identity, ?UserOwnedEntity $entity): void
     {
-        $repo = $this->locator->get(PhotosetRepository::class);
-        $collection = $repo->find($identity->setId);
-        $localLastUpdated = null;
-
-        if ($collection !== null) { //collection exists, but we don't know in what state - check it first
-            //This is early-return to prevent even metadata from being fetched
-            if ($collection->isSyncCompleted() && !$this->syncCompleted) {
-                $this->log->debug(
-                    '{id} sync skipped: collection completed at least one full sync and the setting explicitly ' .
-                    'disabled syncing completed collections',
-                    ['id' => $collection->getUserReadableId()]
-                );
-                return true;
-            }
-
-            $statusCheck = $this->verifyCollectionState($collection); //this checks some static properties of collection
-
-            if ($statusCheck !== null) {
-                return $statusCheck;
-            }
-
-            //this date will be updated so we're saving it to compare with the newest one
-            $localLastUpdated = $collection->getDateLastUpdated() ?? $collection->getDateCreated();
+        if ($identity->hasNSID()) {
+            return;
         }
 
-        // ***** ACTUALLY IMPORTANT *****
-        // DO NOT assume $identity->owner is NSID - it may be, but it can be a screenname. You CANNOT blindly try using
-        // it as NSID. You MUST resolve it via API or database. See Flickr\Url\UrlParser for detailed explanation why.
-        $this->ensureOwnerNSID($identity, $collection);
-
-        $apiCollection = $this->api->getPhotosets()->getInfo($identity->ownerNSID, $identity->setId);
-        $apiInfo = $apiCollection->getContent();
-        if ($collection === null) { //it's a good time to create collection to consistent work on it
-            \assert((string)(int)$apiInfo['id'] === $apiInfo['id'], 'Expected (int)id but got "' . $apiInfo['id'] ."");
-            $collection = new Photoset((int)$apiInfo['id'], $this->getOwnerUser($identity->ownerNSID));
+        $entityOwner = $entity?->getOwner()?->getNsid();
+        if ($entityOwner !== null) {
+            $identity->setNSID($entityOwner);
+            return;
         }
 
-        //Some properties are UPDATED regardless of whether album contents is updated
-        $this->setPhotosetMetadata($collection, $apiInfo);
-        $repo->save($collection, true);
-
-        if (!$this->shouldSyncCollectionItems($collection, $localLastUpdated)) {
-            return true; //not syncing but not due to an error
+        $userIdentity = $this->resolveOwner->lookupUserByPathAlias($identity->getOwner());
+        if ($userIdentity !== null) {
+            $identity->setNSID($userIdentity->nsid);
+            return;
         }
 
-        if (!$this->syncCollectionPhotos($collection, $this->getAlbumPhotos($identity), $sink)) {
+        throw new SyncException(\sprintf('Unable to determine NSID of owner "%s"', $identity->getOwner()));
+    }
+
+    protected function verifyCollectionState(PhotoCollection $collection): ?bool
+    {
+        //This is early-return to prevent even metadata from being fetched
+        if ($collection->isSyncCompleted() && !$this->syncCompleted) {
             $this->log->debug(
-                '{id} sync failed: see previous messages for details',
+                '{id} sync skipped: collection completed at least one full sync and the setting explicitly ' .
+                'disabled syncing completed collections',
+                ['id' => $collection->getUserReadableId()]
+            );
+            return true;
+        }
+
+        if ($collection->isBlacklisted()) {
+            $this->log->warning(
+                '{id} sync skipped: collection explicitly blacklisted',
+                ['id' => $collection->getUserReadableId()]
+            );
+            return true;
+        }
+
+        if (!$this->syncCompleted && $collection->isSyncCompleted()) {
+            $this->log->info(
+                '{id} sync skipped: it exists and it was completed before. The sync of completed collections has ' .
+                'been explicitly disabled by configuration.',
+                ['id' => $collection->getUserReadableId()]
+            );
+            return true;
+        }
+
+        if ($collection->isDeleted()) {
+            $this->log->info(
+                '{id} sync skipped: collection previously deleted',
+                ['id' => $collection->getUserReadableId()]
+            );
+            return true;
+        }
+
+        if ($collection->isWriteLocked()) {
+            $this->log->warning(
+                '{id} sync cannot complete: collection is write-locked',
                 ['id' => $collection->getUserReadableId()]
             );
             return false;
         }
 
-        $collection->setDateSyncCompleted(new \DateTimeImmutable());
-        $repo->save($collection);
-
-        return true;
-
-        //todo: albums contain count_photos_* fields (all, public, friend etc) -> maybe there should be a warning if
-        // "total" isn't the same as the count? (i.e. we see less photos via API than count so probably lack of oauth)
+        return null;
     }
 
-    private function shouldSyncCollectionItems(PhotoCollection $collection, ?\DateTimeInterface $localLastUpdated): bool
+    protected function shouldSyncCollectionItems(PhotoCollection $collection, ?\DateTimeInterface $localLastUpdated): bool
     {
         if (!$collection->isSyncCompleted()) {
             $this->log->info(
@@ -227,7 +236,7 @@ final class SyncCollection implements ServiceSubscriberInterface
      * @param iterable<array> $photos
      * @param TSyncCallback $sink
      */
-    private function syncCollectionPhotos(PhotoCollection $collection, iterable $photos, callable $sink): bool
+    protected function syncCollectionPhotos(PhotoCollection $collection, iterable $photos, callable $sink): bool
     {
         $localPhotos = $collection->getPhotos();
         $this->log->info('{col} photos syncing started', ['col' => $collection->getUserReadableId()]);
@@ -282,6 +291,39 @@ final class SyncCollection implements ServiceSubscriberInterface
         }
 
         return $result;
+    }
+
+    private function verifyPhotoState(Photo $photo): bool
+    {
+        if ($photo->isBlacklisted()) {
+            $this->log->warning(
+                'Photo {id} sync skipped: photo explicitly blacklisted',
+                ['id' => $photo->getId()]
+            );
+            return true;
+        }
+
+        if ($photo->isDeleted()) {
+            $this->log->info(
+                'Photo {id} sync skipped: photo previously deleted',
+                ['id' => $photo->getId()]
+            );
+            return true;
+        }
+
+        if ($photo->isWriteLocked()) {
+            $this->log->warning(
+                'Photo {id} sync cannot complete: collection is write-locked',
+                ['id' => $photo->getId()]
+            );
+            return false;
+        }
+
+        if (!$photo->isFilesystemInSync()) {
+            $this->log->warning('Photo {id} metadata is not in sync with filesystem', ['id' => $photo->getId()]);
+        }
+
+        return true;
     }
 
     private function shouldSyncPhoto(int $photoId, bool $isNewLocalPhoto, Photo $localPhoto, ?\DateTimeInterface $localLastUpdated, PhotoDto $remotePhoto, PhotoSize $remoteSize): bool
@@ -355,34 +397,6 @@ final class SyncCollection implements ServiceSubscriberInterface
         return false;
     }
 
-    private function setPhotosetMetadata(Photoset $local, array $apiPhotoset): void
-    {
-        $local->setApiData($apiPhotoset)
-            ->setDateLastRetrieved(new \DateTimeImmutable());
-
-        if (isset($apiPhotoset['title']['_content'])) {
-            $local->setTitle($apiPhotoset['title']['_content']);
-        }
-
-        if (isset($apiPhotoset['description']['_content'])) {
-            $local->setDescription($apiPhotoset['description']['_content']);
-        }
-
-        if ($local->getDateCreated() === null) {
-            $local->setDateCreated((new \DateTimeImmutable())->setTimestamp((int)$apiPhotoset['date_create']));
-        }
-
-        $dateUpdateLocal = $local->getDateLastUpdated();
-        $dateUpdateApi = (new \DateTimeImmutable())->setTimestamp((int)$apiPhotoset['date_update']);
-        if ($dateUpdateLocal === null || $dateUpdateApi > $dateUpdateLocal) {
-            $local->setDateLastUpdated($dateUpdateApi);
-        }
-
-        if ($local->getOwner() === null) {
-            $local->setOwner($this->getOwnerUser($apiPhotoset['owner']));
-        }
-    }
-
     private function setPhotoMetadata(Photo $local, PhotoDto $apiPhoto): void
     {
         $local->setApiData($apiPhoto->apiData)
@@ -416,7 +430,7 @@ final class SyncCollection implements ServiceSubscriberInterface
         //We're not updating version here are presumably the caller has more knowledge about sizes etc
     }
 
-    private function getIdentitySwitchCallback(): ?callable
+    protected function getIdentitySwitchCallback(): ?callable
     {
         if (!$this->switchIdentities) {
             return null;
@@ -430,133 +444,11 @@ final class SyncCollection implements ServiceSubscriberInterface
         };
     }
 
-    /**
-     * @return iterable<PhotoDto>
-     */
-    private function getAlbumPhotos(AlbumIdentity $albumIdentity): iterable
-    {
-        return $this->api->getPhotosets()
-                         ->getPhotosIterable(
-                             $albumIdentity->ownerNSID,
-                             $albumIdentity->setId,
-                             PhotosetsEndpoint::MAX_PER_PAGE,
-                             self::PHOTO_EXTRAS,
-                             pageFinishCallback: $this->getIdentitySwitchCallback()
-                         );
-    }
-
-    private function verifyCollectionState(PhotoCollection $collection): ?bool
-    {
-        if ($collection->isBlacklisted()) {
-            $this->log->warning(
-                '{id} sync skipped: collection explicitly blacklisted',
-                ['id' => $collection->getUserReadableId()]
-            );
-            return true;
-        }
-
-        if (!$this->syncCompleted && $collection->isSyncCompleted()) {
-            $this->log->info(
-                '{id} sync skipped: it exists and it was completed before. The sync of completed collections has ' .
-                'been explicitly disabled by configuration.',
-                ['id' => $collection->getUserReadableId()]
-            );
-            return true;
-        }
-
-        if ($collection->isDeleted()) {
-            $this->log->info(
-                '{id} sync skipped: collection previously deleted',
-                ['id' => $collection->getUserReadableId()]
-            );
-            return true;
-        }
-
-        if ($collection->isWriteLocked()) {
-            $this->log->warning(
-                '{id} sync cannot complete: collection is write-locked',
-                ['id' => $collection->getUserReadableId()]
-            );
-            return false;
-        }
-
-        return null;
-    }
-
-    private function verifyPhotoState(Photo $photo): bool
-    {
-        if ($photo->isBlacklisted()) {
-            $this->log->warning(
-                'Photo {id} sync skipped: photo explicitly blacklisted',
-                ['id' => $photo->getId()]
-            );
-            return true;
-        }
-
-        if ($photo->isDeleted()) {
-            $this->log->info(
-                'Photo {id} sync skipped: photo previously deleted',
-                ['id' => $photo->getId()]
-            );
-            return true;
-        }
-
-        if ($photo->isWriteLocked()) {
-            $this->log->warning(
-                'Photo {id} sync cannot complete: collection is write-locked',
-                ['id' => $photo->getId()]
-            );
-            return false;
-        }
-
-        if (!$photo->isFilesystemInSync()) {
-            $this->log->warning('Photo {id} metadata is not in sync with filesystem', ['id' => $photo->getId()]);
-        }
-
-        return true;
-    }
-
-    /**
-     * Ensures that collection identifier that is owner aware has a complete owner identity (i.e. NSID)
-     */
-    private function ensureOwnerNSID(OwnerAwareIdentity $identity, ?UserOwnedEntity $entity): void
-    {
-        if ($identity->hasNSID()) {
-            return;
-        }
-
-        $entityOwner = $entity?->getOwner()?->getNsid();
-        if ($entityOwner !== null) {
-            $identity->setNSID($entityOwner);
-            return;
-        }
-
-        $userIdentity = $this->resolveOwner->lookupUserByPathAlias($identity->getOwner());
-        if ($userIdentity !== null) {
-            $identity->setNSID($userIdentity->nsid);
-            return;
-        }
-
-        throw new SyncException(\sprintf('Unable to determine NSID of owner "%s"', $identity->getOwner()));
-    }
-
-    private function getOwnerUser(string $nsid): User
-    {
-        $user = $this->userRepo->find($nsid);
-        if ($user === null) {
-            $identity = $this->resolveOwner->lookupUserByPathAlias($nsid);
-            $user = new User($identity->nsid, $identity->userName, $identity->screenName);
-            $this->userRepo->save($user, true);
-        }
-
-        return $user;
-    }
-
     public static function getSubscribedServices(): array
     {
         return [
             ApiClientConfigFactory::class, //used only when randomization desired
-            PhotosetRepository::class,
         ];
     }
+
 }
