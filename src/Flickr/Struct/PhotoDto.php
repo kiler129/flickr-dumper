@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Flickr\Struct;
 
 use App\Exception\DomainException;
+use App\Exception\InvalidArgumentException;
 use App\Struct\PhotoExtraFields;
 use App\Struct\PhotoSize;
 
@@ -79,7 +80,7 @@ final class PhotoDto
         'dateTakenUnknown' => 'datetakenunknown',
         'ownerUsername' => 'ownername',
         'ownerNsid' => 'owner',
-        'ownerScreenname' => 'pathalias',
+        'ownerScreenName' => 'pathalias',
         'iconServer' => 'iconserver',
         'iconFarm' => 'iconfarm',
         'originalSecret' => 'originalsecret',
@@ -172,6 +173,11 @@ final class PhotoDto
         return null;
     }
 
+    public function hasSizeUrl(PhotoSize $size): bool
+    {
+        return isset($this->apiData[$size->asApiField()]);
+    }
+
     public function getSizeUrl(PhotoSize $size): ?string
     {
         $field = $size->asApiField();
@@ -185,11 +191,14 @@ final class PhotoDto
     private function transformValue(string $apiName, mixed $value): mixed
     {
         return match ($apiName) {
-            //"title" doesn't have "_content"
-            PhotoExtraFields::DESCRIPTION->value => $value['_content'] ?? '',
+            //"title" doesn't have "_content" USUALLY but SOMETIMES it does lol
+            'title' => $value['_content'] ?? $value,
+            PhotoExtraFields::DESCRIPTION->value => $value['_content'] ?? $value,
             PhotoExtraFields::LICENSE->value => \explode(',', $value),
             'dateupload', 'lastupdate', 'datetaken' => $this->castDateTime($value),
-            'tags' => \explode(' ', $value),
+            'tags' => is_array($value['tag'] ?? null)
+                ? \array_column($value['tag'], '_content')
+                : \explode(' ', $value),
             default => $this->transformAutocast($apiName, $value)
         };
     }
@@ -213,11 +222,52 @@ final class PhotoDto
         return new \DateTimeImmutable($value);
     }
 
-    static public function fromApiResponse(array $fields): self
+    static public function fromGenericApiResponse(array $fields): self
     {
         $obj = new self();
         $obj->apiData = $fields;
 
         return $obj;
     }
+
+    static public function fromExtendedApiResponse(array $fields): self
+    {
+        if (!isset($fields['owner']) || !\is_array($fields['owner']) ||
+            !isset($fields['tags']) || !\is_array($fields['tags'])) {
+            throw new InvalidArgumentException(
+                'It does not look like an extended response (e.g. from flick.photos.getInfo)'
+            );
+        }
+
+        //we can convert some of the fields ;)
+        if (isset($fields['dates']['posted'])) {
+            $fields['dateupload'] = $fields['dates']['posted'];
+        }
+        if (isset($fields['dates']['taken'])) {
+            $fields['datetaken'] = $fields['dates']['taken'];
+        }
+        if (isset($fields['dates']['takenunknown'])) {
+            $fields['datetakenunknown'] = $fields['dates']['takenunknown'];
+        }
+        if (isset($fields['dates']['lastupdate'])) {
+            $fields['lastupdate'] = $fields['dates']['lastupdate'];
+        }
+
+        if (isset($fields['owner'])) {
+            $fields['ownername'] = $fields['owner']['username'];
+            $fields['pathalias'] = $fields['owner']['path_alias'];
+            $fields['iconserver'] = $fields['owner']['iconserver'];
+            $fields['iconfarm'] = $fields['owner']['iconfarm'];
+            $fields['owner'] = $fields['owner']['nsid'];
+        }
+        $fields = \array_merge($fields, $fields['visibility'] ?? []);
+
+
+        $obj = new self();
+        $obj->apiData = $fields;
+
+        return $obj;
+    }
+
+
 }

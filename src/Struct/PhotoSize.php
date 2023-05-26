@@ -93,8 +93,8 @@ enum PhotoSize: string
      */
     public function compareWith(PhotoSize $otherSize): int
     {
-        return \array_search($this, self::CASES_SIZE_DESCENDING, true) <=>
-               \array_search($otherSize, self::CASES_SIZE_DESCENDING, true);
+        return \array_search($otherSize, self::CASES_SIZE_DESCENDING, true) <=>
+               \array_search($this, self::CASES_SIZE_DESCENDING, true);
     }
 
     /**

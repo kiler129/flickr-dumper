@@ -1,17 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Command;
+namespace App\Command\Flickr;
 
-use App\Exception\Api\ApiCallException;
-use App\Flickr\Client\FlickrApiClient;
 use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\PhotosetRepository;
-use App\Struct\ApiError;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;

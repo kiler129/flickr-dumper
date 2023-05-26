@@ -37,7 +37,24 @@ final readonly class FileInTransit
 
         $bytes = \fwrite($this->handle, $data);
         if ($bytes === false) {
-            throw new  IOException(\sprintf('Write of %d bytes to file "%s" failed', \strlen($data), $this->tmpPath));
+            throw new IOException(\sprintf('Write of %d bytes to file "%s" failed', \strlen($data), $this->tmpPath));
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * Copies data from a source stream to this FileInTransit
+     *
+     * @param resource $stream
+     *
+     * @return int Number of bytes copies
+     */
+    public function writeFromStream($stream): int
+    {
+        $bytes = \stream_copy_to_stream($stream, $this->handle);
+        if ($bytes === false) {
+            throw new IOException(\sprintf('Copying data from external stream to file "%s" failed', $this->tmpPath));
         }
 
         return $bytes;

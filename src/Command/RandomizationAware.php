@@ -12,6 +12,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * @property HttpClientInterface|null $downloadHttpClient
  * @property BaseApiClient $apiClient
  * @method self addOption(...$opts)
+ *
+ * @deprecated
  */
 trait RandomizationAware
 {

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Command;
+namespace App\Command\Debug;
 
 use App\Flickr\Url\UrlParser;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -12,12 +12,14 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\VarDumper\Cloner\Stub;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\AbstractDumper;
 use Symfony\Component\VarDumper\Dumper\CliDumper;
 
-#[AsCommand(name: 'debug:flickr-url')]
+#[AsCommand(
+    name: 'app:debug:flickr-url',
+    description: 'Allows for testing how the application sees Flickr URLs internally'
+)]
 final class DebugUrlCommand extends Command
 {
     private const URLS = [

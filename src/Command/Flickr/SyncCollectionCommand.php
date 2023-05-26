@@ -1,8 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Command;
+namespace App\Command\Flickr;
 
+use App\Command\IdentitySwitching;
 use App\Entity\Flickr\Photo;
 use App\Factory\SyncStrategyFactory;
 use App\Flickr\Enum\MediaCollectionType;
@@ -44,6 +45,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class SyncCollectionCommand extends Command
 {
+    use IdentitySwitching;
+
     private SymfonyStyle           $io;
 
     private ConsoleOutputInterface $progressOutput;
@@ -51,7 +54,7 @@ class SyncCollectionCommand extends Command
     /** @var array<int, array{bar: ProgressBar, scr: ConsoleSectionOutput} */
     private array $progressScreens = [];
 
-    /** @var list<ConsoleSectionOutput> */
+    /** @var ConsoleSectionOutput */
     private array $availableScreens = [];
 
     /**
@@ -106,22 +109,19 @@ class SyncCollectionCommand extends Command
                  InputOption::VALUE_NONE,
                  'Do not download any files'
              )
-            ->addOption(
-                'randomize-identity',
-                'r',
-                InputOption::VALUE_NONE,
-                'Randomizes HTTP client identity and API keys (if multiple configured)'
-            )
              ->addArgument(
                  'collection',
                  InputArgument::OPTIONAL,
                  "URL or ID of $types (ignored for user photostream and faves). When URL isn't used," .
                  " --user-id and --type are required."
              );
+
+        $this->addSwitchIdentitiesOption($this);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $this->resolveSwitchIdentities($input);
         $this->io = new SymfonyStyle($input, $output);
 
         $identity = $this->getCollectionIdentity($input);
@@ -135,7 +135,7 @@ class SyncCollectionCommand extends Command
         $syncUC->syncCompleted = !$input->getOption('ignore-completed');
         $syncUC->trustUpdateTimestamps = !$input->getOption('distrust-timestamps');
         $syncUC->trustPhotoRecords = !$input->getOption('repair-files');
-        $syncUC->switchIdentities = $input->getOption('randomize-identity');
+        $syncUC->switchIdentities = $this->switchIdentities;
 
         return $syncUC->syncCollection($identity, $sinkCb) ? Command::SUCCESS : Command::FAILURE;
     }
@@ -159,7 +159,7 @@ class SyncCollectionCommand extends Command
         }
 
         $dlUC = ($this->fetchPhotoToDisk)(); //this will always get a new instance
-        $dlUC->switchIdentities = $input->getOption('randomize-identity');
+        $dlUC->switchIdentities = $this->switchIdentities;
 
         if ($output instanceof ConsoleOutputInterface) {
             $this->progressOutput = $output;

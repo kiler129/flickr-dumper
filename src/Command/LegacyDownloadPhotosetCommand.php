@@ -23,6 +23,9 @@ use Symfony\Component\Filesystem\Filesystem;
     aliases: ['legacy-flickr:downlaod-album'],
     description: 'Downloads a single photoset (aka. "album")',
 )]
+/**
+ * @deprecated
+ */
 class LegacyDownloadPhotosetCommand extends BaseDownloadCommand
 {
     public function __construct(
@@ -177,7 +180,7 @@ class LegacyDownloadPhotosetCommand extends BaseDownloadCommand
 
     private function getLargestSizeUrl(array $photo): string
     {
-        $sizes = PhotoDto::fromApiResponse($photo)->getSortedSizes();
+        $sizes = PhotoDto::fromGenericApiResponse($photo)->getSortedSizes();
         $largestKey = \array_key_last($sizes);
 
         return $sizes[$largestKey]['url'];

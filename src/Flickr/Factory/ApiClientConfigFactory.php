@@ -25,14 +25,36 @@ final class ApiClientConfigFactory
         \shuffle($apiKeys); //Ensure we're not hitting the first one disproportionally
     }
 
-    public function getWithCommonClient(): ApiClientConfig
+    public function getWithCommonClient(?string $customKey = null): ApiClientConfig
     {
-        return new ApiClientConfig($this->getRandomKey(), $this->httpConfigFactory->getWithCommonCliClient());
+        return new ApiClientConfig(
+            $customKey ?? $this->getRandomKey(),
+            $this->httpConfigFactory->getWithCommonCliClient()
+        );
     }
 
-    public function getWithRandomClient(): ApiClientConfig
+    public function getWithRandomClient(?string $customKey = null): ApiClientConfig
     {
-        return new ApiClientConfig($this->getRandomKey(), $this->httpConfigFactory->getWithRandomCliClient());
+        return new ApiClientConfig(
+            $customKey ?? $this->getRandomKey(),
+            $this->httpConfigFactory->getWithRandomCliClient()
+        );
+    }
+
+    /**
+     * @return iterable<string, ApiClientConfig>
+     */
+    public function getWithAllKeys(bool $randomHttpClient = true): iterable
+    {
+        foreach ($this->keys as $key)
+        {
+            yield $key => new ApiClientConfig(
+                $key,
+                $randomHttpClient
+                    ? $this->httpConfigFactory->getWithRandomCliClient()
+                    : $this->httpConfigFactory->getWithCommonCliClient()
+            );
+        }
     }
 
     private function getRandomKey(): ?string

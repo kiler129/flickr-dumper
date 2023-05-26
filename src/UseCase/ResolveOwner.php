@@ -35,7 +35,7 @@ class ResolveOwner
     public function resolveOwnerUser(PhotoDto $photoDto, ?PhotoCollection $foundIn): User
     {
         //If we can ensure that collection owner ALWAYS own all the photos (e.g. in albums) then we can simply take it
-        if ($foundIn::ownerOwnsPhotos()) {
+        if ($foundIn !== null && $foundIn::ownerOwnsPhotos()) {
             $owner = $foundIn->getOwner();
             $this->log->debug(
                 'Owner id={oid} of photo id={phid} taken from collection {colType}',
@@ -45,12 +45,48 @@ class ResolveOwner
             return $owner;
         }
 
+        if (isset($photoDto->ownerNsid)) {
+            $user = $this->userRepo->find($photoDto->ownerNsid);
+            if ($user !== null) {
+                return $user;
+            }
+        }
 
         $identity = $this->identifyPhotoUser($photoDto);
         $user = new User($identity->nsid, $identity->userName, $identity->screenName);
         $this->userRepo->save($user, true);
 
         return $user;
+    }
+
+    private function identifyPhotoUser(PhotoDto $photoDto): UserIdentity
+    {
+        $photoHasNsid = isset($photoDto->ownerNsid); //e.g. "1234@N05"
+        $photoHasScreenName = isset($photoDto->ownerScreenName); //e.g. "spacex" (but CAN be null which is valid)
+        $photoHasUserName = isset($photoDto->ownerUsername); //e.g. "Space X Photos"
+
+        //In simple cases where the owner NSID exists in the API response (e.g. for faves) we can take a shortcut
+        //However, this only avoids user lookup if we ALSO have owner screen name and username which is rare
+        if ($photoHasNsid && $photoHasScreenName && $photoHasUserName) {
+            return new UserIdentity($photoDto->ownerNsid, $photoDto->ownerUsername, $photoDto->ownerScreenName);
+        }
+
+        if ($photoHasNsid) {
+            return $this->lookupUserByPathAlias($photoDto->ownerNsid);
+        }
+
+        if ($photoHasScreenName) {
+            return $this->lookupUserByPathAlias($photoDto->ownerScreenName);
+        }
+
+        if ($photoHasUserName) {
+            throw new \Exception('Not Implemented Scenario');
+            //TODO: https://www.flickr.com/services/api/explore/flickr.people.findByUsername
+        }
+
+        throw new DomainException(
+            \sprintf('Photo id=%s does not contain owner NSID, nor screen name, nor user name', $photoDto->id)
+        );
     }
 
     /**
@@ -84,38 +120,5 @@ class ResolveOwner
         $screenName = $screenNameOrNSID !== $data['id'] ? $screenNameOrNSID : null;
 
         return new UserIdentity($data['id'], $data['username']['_content'], $screenName);
-    }
-
-    private function identifyPhotoUser(PhotoDto $photoDto): UserIdentity
-    {
-        $photoHasNsid = isset($photoDto->ownerNsid); //e.g. "1234@N05"
-        $photoHasScreenName = isset($photoDto->ownerScreenName); //e.g. "spacex" (but CAN be null which is valid)
-        $photoHasUserName = isset($photoDto->ownerUsername); //e.g. "Space X Photos"
-
-        //In simple cases where the owner NSID exists in the API response (e.g. for faves) we can take a shortcut
-        //However, this only avoids user lookup if we ALSO have owner screen name and username which is rare
-        if ($photoHasNsid && $photoHasScreenName && $photoHasUserName) {
-            return new UserIdentity($photoDto->ownerNsid, $photoDto->ownerUsername, $photoDto->ownerScreenName);
-        }
-
-        if ($photoHasNsid) {
-            return $this->lookupUserByPathAlias($photoDto->ownerNsid);
-        }
-
-        if ($photoHasScreenName) {
-            $screenName = $photoDto->ownerScreenName;
-            if ($screenName !== null) { //not having screen name is valid!
-                return $this->lookupUserByPathAlias($photoDto->ownerScreenName);
-            }
-        }
-
-        if ($photoHasUserName) {
-            throw new \Exception('Not Implemented Scenario');
-            //TODO: https://www.flickr.com/services/api/explore/flickr.people.findByUsername
-        }
-
-        throw new DomainException(
-            \sprintf('Photo id=%s does not contain owner NSID, nor screen name, nor user name', $photoDto->id)
-        );
     }
 }

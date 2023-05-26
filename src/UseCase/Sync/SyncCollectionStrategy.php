@@ -19,6 +19,7 @@ use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\UserRepository;
 use App\Struct\PhotoExtraFields;
 use App\Struct\PhotoSize;
+use App\Transformer\PhotoDtoEntityTransformer;
 use App\UseCase\ResolveOwner;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
@@ -86,6 +87,7 @@ abstract class SyncCollectionStrategy
         protected LoggerInterface $log,
         private UserRepository $userRepo,
         private PhotoRepository $photoRepo,
+        private PhotoDtoEntityTransformer $photoTransformer,
         private ResolveOwner $resolveOwner,
         private UrlParser $urlParser,
         private EntityManagerInterface $om,
@@ -243,7 +245,7 @@ abstract class SyncCollectionStrategy
 
         $result = true;
         foreach ($photos as $apiPhoto) {
-            $remotePhoto = PhotoDto::fromApiResponse($apiPhoto);
+            $remotePhoto = PhotoDto::fromGenericApiResponse($apiPhoto);
             $photoId = $remotePhoto->id;
             $remoteSize = $remotePhoto->getLargestSize();
 
@@ -275,7 +277,7 @@ abstract class SyncCollectionStrategy
             //Similar to collections, regardless if the photo has been updated on the remote we want to sync metadata
             // as some of them don't trigger photo being updated (e.g. number of views)
             $localLastUpdated = $localPhoto->getDateLastUpdated(); //the metadata update may overwrite this for existing
-            $this->setPhotoMetadata($localPhoto, $remotePhoto);
+            $this->photoTransformer->setPhotoMetadata($localPhoto, $remotePhoto);
             if (!$localPhotos->contains($localPhoto)) {
                 $this->log->info(
                     '{colid}: linking photo id={phid}',
@@ -395,39 +397,6 @@ abstract class SyncCollectionStrategy
         );
 
         return false;
-    }
-
-    private function setPhotoMetadata(Photo $local, PhotoDto $apiPhoto): void
-    {
-        $local->setApiData($apiPhoto->apiData)
-              ->setDateLastRetrieved(new \DateTimeImmutable());
-
-        if (isset($apiPhoto->title)) {
-            $local->setTitle($apiPhoto->title);
-        }
-
-        if (isset($apiPhoto->description)) {
-            $local->setDescription($apiPhoto->description);
-        }
-
-        if ($local->getDateTaken() === null && isset($apiPhoto->dateTaken)) {
-            $local->setDateTaken($apiPhoto->dateTaken);
-        }
-
-        if ($local->getDateUploaded() === null && isset($apiPhoto->dateUploaded)) {
-            $local->setDateUploaded($apiPhoto->dateUploaded);
-        }
-
-        $dateUpdateLocal = $local->getDateLastUpdated();
-        if (isset($apiPhoto->dateUpdated) && ($dateUpdateLocal === null || $apiPhoto->dateUpdated > $dateUpdateLocal)) {
-            $local->setDateLastUpdated($apiPhoto->dateUpdated);
-        }
-
-        if (isset($apiPhoto->views)) {
-            $local->setViews($apiPhoto->views);
-        }
-
-        //We're not updating version here are presumably the caller has more knowledge about sizes etc
     }
 
     protected function getIdentitySwitchCallback(): ?callable

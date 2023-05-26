@@ -48,16 +48,24 @@ services:
         resource: '../src/Controller/'
         tags: ['controller.service_arguments']
 
-    App\Command\SyncCollectionCommand:
-        arguments:
-            $fetchPhotoToDisk: !service_closure '@App\UseCase\FetchPhotoToDisk'
-            $consoleHandler: '@monolog.handler.console'
-
-    # usecase has state for options
+    # usecase has state for options, see command below
     App\UseCase\FetchPhotoToDisk:
         shared: false
         arguments:
             $batchSize: '%app.flickr_batch_size%'
+    App\Command\Flickr\SyncCollectionCommand:
+        arguments:
+            $fetchPhotoToDisk: !service_closure '@App\UseCase\FetchPhotoToDisk'
+            $consoleHandler: '@monolog.handler.console'
+
+
+    # usecase has state for options, see cmd bellow
+    App\UseCase\ImportFiles\ImportLocalFiles:
+        shared: false
+    App\Command\Flickr\ImportFolderCommand:
+        arguments:
+            $importUC: !service_closure '@App\UseCase\ImportFiles\ImportLocalFiles'
+
 
     # replaced by ApiClientConfigFactory logic
     App\Flickr\ApiKeyProvider:
