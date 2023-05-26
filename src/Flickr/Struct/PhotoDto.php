@@ -42,14 +42,13 @@ use App\Struct\PhotoSize;
  * @property-read float $longitude
  * @property-read int $accuracy
  */
-final class PhotoDto
+final class PhotoDto extends BaseDto
 {
-    private const SIMPLE_TYPECAST_MAP = [
+    protected const SIMPLE_TYPECAST_MAP = [
         'id' => 'int',
         'secret' => 'string',
         'server' => 'string',
         'farm' => 'int',
-        'title' => 'string',
         'isprimary' => 'bool',
         'ispublic' => 'bool',
         'isfriend' => 'bool',
@@ -67,8 +66,8 @@ final class PhotoDto
         'longitude' => 'float',
         'accuracy' => 'int',
     ];
-    
-    private const KNOWN_TO_API = [
+
+    protected const KNOWN_TO_API = [
         'primary' => 'isprimary',
         'public' => 'ispublic',
         'friend' => 'isfriend',
@@ -86,37 +85,6 @@ final class PhotoDto
         'originalSecret' => 'originalsecret',
         'originalFormat' => 'originalformat',
     ];
-
-    public readonly array $apiData;
-
-    private array $dataTransformed = [];
-
-    public function __set(string $name, mixed $value): void
-    {
-        $this->apiData[$name] = $value;
-    }
-
-    public function __get(string $name): mixed
-    {
-        if (isset(self::KNOWN_TO_API[$name])) {
-            $name = self::KNOWN_TO_API[$name];
-        }
-
-        if (isset($this->dataTransformed[$name])) {
-            return $this->dataTransformed[$name];
-        }
-
-        if (!\array_key_exists($name, $this->apiData)) {
-            throw new DomainException('Property ' . $name . ' is not present in the dataset');
-        }
-
-        return $this->dataTransformed[$name] = $this->transformValue($name, $this->apiData[$name]);
-    }
-
-    public function __isset(string $name): bool
-    {
-        return \array_key_exists(self::KNOWN_TO_API[$name] ?? $name, $this->apiData);
-    }
 
     /**
      * @return array<string, array{size: PhotoSize, url: string, width: int, height: int}>
@@ -188,7 +156,7 @@ final class PhotoDto
         return $this->apiData[$field];
     }
 
-    private function transformValue(string $apiName, mixed $value): mixed
+    protected function transformValue(string $apiName, mixed $value): mixed
     {
         return match ($apiName) {
             //"title" doesn't have "_content" USUALLY but SOMETIMES it does lol
@@ -203,34 +171,7 @@ final class PhotoDto
         };
     }
 
-    private function transformAutocast(string $apiName, mixed $value): mixed
-    {
-        if (isset(self::SIMPLE_TYPECAST_MAP[$apiName])) {
-            \settype($value, self::SIMPLE_TYPECAST_MAP[$apiName]);
-        }
-
-        return $value;
-    }
-
-    private function castDateTime(int|string $value): \DateTimeInterface
-    {
-        if ((string)(int)$value === (string)$value) {
-            $dti = new \DateTimeImmutable();
-            return $dti->setTimestamp((int)$value);
-        }
-
-        return new \DateTimeImmutable($value);
-    }
-
-    static public function fromGenericApiResponse(array $fields): self
-    {
-        $obj = new self();
-        $obj->apiData = $fields;
-
-        return $obj;
-    }
-
-    static public function fromExtendedApiResponse(array $fields): self
+    static public function fromExtendedApiResponse(array $fields): static
     {
         if (!isset($fields['owner']) || !\is_array($fields['owner']) ||
             !isset($fields['tags']) || !\is_array($fields['tags'])) {
@@ -263,11 +204,6 @@ final class PhotoDto
         $fields = \array_merge($fields, $fields['visibility'] ?? []);
 
 
-        $obj = new self();
-        $obj->apiData = $fields;
-
-        return $obj;
+        return new static($fields);
     }
-
-
 }

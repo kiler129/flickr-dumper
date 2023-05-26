@@ -34,9 +34,23 @@ trait PhotoCollectionFragment
         return $this->status->blacklisted;
     }
 
+    public function setBlacklisted(bool $isBlacklisted = true): self
+    {
+        $this->status->blacklisted = $isBlacklisted;
+
+        return $this;
+    }
+
     public function isDeleted(): bool
     {
         return $this->status->deleted;
+    }
+
+    public function setDeleted(bool $isDeleted = true): self
+    {
+        $this->status->deleted = $isDeleted;
+
+        return $this;
     }
 
     public function lockForWrite(): void

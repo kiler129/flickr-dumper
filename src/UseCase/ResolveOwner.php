@@ -45,34 +45,41 @@ class ResolveOwner
             return $owner;
         }
 
-        if (isset($photoDto->ownerNsid)) {
-            $user = $this->userRepo->find($photoDto->ownerNsid);
-            if ($user !== null) {
-                return $user;
-            }
-        }
+        //if (isset($photoDto->ownerNsid)) {
+        //    $user = $this->userRepo->find($photoDto->ownerNsid);
+        //    if ($user !== null) {
+        //        return $user;
+        //    }
+        //}
 
-        $identity = $this->identifyPhotoUser($photoDto);
-        $user = new User($identity->nsid, $identity->userName, $identity->screenName);
-        $this->userRepo->save($user, true);
+        //$identity = $this->identifyPhotoUser($photoDto);
+        //$user = new User($identity->nsid, $identity->userName, $identity->screenName);
+        //$this->userRepo->save($user, true);
 
-        return $user;
+        return $this->identifyPhotoUser($photoDto);
     }
 
-    private function identifyPhotoUser(PhotoDto $photoDto): UserIdentity
+    private function identifyPhotoUser(PhotoDto $photoDto): User
     {
         $photoHasNsid = isset($photoDto->ownerNsid); //e.g. "1234@N05"
         $photoHasScreenName = isset($photoDto->ownerScreenName); //e.g. "spacex" (but CAN be null which is valid)
         $photoHasUserName = isset($photoDto->ownerUsername); //e.g. "Space X Photos"
 
+        //Simplest case -> maybe the user just exists in the database
+        if ($photoHasNsid) {
+            $user = $this->userRepo->find($photoDto->ownerNsid);
+                if ($user !== null) {
+                    return $user;
+                }
+        }
+
         //In simple cases where the owner NSID exists in the API response (e.g. for faves) we can take a shortcut
         //However, this only avoids user lookup if we ALSO have owner screen name and username which is rare
         if ($photoHasNsid && $photoHasScreenName && $photoHasUserName) {
-            return new UserIdentity($photoDto->ownerNsid, $photoDto->ownerUsername, $photoDto->ownerScreenName);
-        }
+            $user = new User($photoDto->ownerNsid, $photoDto->ownerUsername, $photoDto->ownerScreenName);
+            $this->userRepo->save($user, true);
 
-        if ($photoHasNsid) {
-            return $this->lookupUserByPathAlias($photoDto->ownerNsid);
+            return $user;
         }
 
         if ($photoHasScreenName) {
@@ -102,11 +109,17 @@ class ResolveOwner
      * no static way to resolve these. The reason why this isn't trying username lookup is screenname and username are
      * not cross-unique. I.e. you can have user with <screenname=nasahqphoto username=NASA HQ PHOTO> and another user
      * with <username=nasahqphoto>.... ask me how I know ;D
+     *
+     * @deprecated I think... because in general lookupUserByPathAlias should be used?
      */
-    public function lookupUserByPathAlias(string $screenNameOrNSID): ?UserIdentity
+    public function lookupUserIdentityByPathAlias(string $screenNameOrNSID): ?UserIdentity
     {
         $user = $this->userRepo->findOneByIdentifier($screenNameOrNSID);
         if ($user !== null) {
+            $this->log->debug(
+                'Found user {user} in db as NSID={nsid}',
+                ['user' => $screenNameOrNSID, 'nsid' => $user->getNsid()]
+            );
             return new UserIdentity($user->getNsid(), $user->getUserName(), $user->getScreenName());
         }
 
@@ -118,7 +131,44 @@ class ResolveOwner
 
         $data = $lookup->getContent();
         $screenName = $screenNameOrNSID !== $data['id'] ? $screenNameOrNSID : null;
+        $this->log->debug(
+            'Found user {user} via API as NSID={nsid}',
+            ['user' => $screenNameOrNSID, 'nsid' => $data['id']]
+        );
 
         return new UserIdentity($data['id'], $data['username']['_content'], $screenName);
+    }
+
+    /**
+     * Same as lookupUserIdentityByPathAlias() but ensures entity lookup
+     */
+    public function lookupUserByPathAlias(string $screenNameOrNSID): ?User
+    {
+        $user = $this->userRepo->findOneByIdentifier($screenNameOrNSID);
+        if ($user !== null) {
+            $this->log->debug(
+                'Found user {user} in db as NSID={nsid}',
+                ['user' => $screenNameOrNSID, 'nsid' => $user->getNsid()]
+            );
+            return $user;
+        }
+
+        $profileUrl = $this->urlGenerator->getProfileLink($screenNameOrNSID);
+        $lookup = $this->apiClient->getUrls()->lookupUser($profileUrl);
+        if (!$lookup->isSuccessful()) {
+            return null;
+        }
+
+        $data = $lookup->getContent();
+        $screenName = $screenNameOrNSID !== $data['id'] ? $screenNameOrNSID : null;
+        $this->log->debug(
+            'Found user {user} via API as NSID={nsid} - saving to DB',
+            ['user' => $screenNameOrNSID, 'nsid' => $data['id']]
+        );
+
+        $user = new User($data['id'], $data['username']['_content'], $screenName);
+        $this->userRepo->save($user, true);
+
+        return $user;
     }
 }

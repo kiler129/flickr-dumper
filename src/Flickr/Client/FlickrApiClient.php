@@ -22,12 +22,12 @@ use Symfony\Contracts\Service\ServiceSubscriberInterface;
 
 final class FlickrApiClient implements ServiceSubscriberInterface
 {
-    private readonly FavoritesEndpoint $favorites;
-    private readonly PandaEndpoint $panda;
-    private readonly PhotosEndpoint $photos;
-    private readonly PhotosetsEndpoint $photosets;
-    private readonly TestEndpoint $test;
-    private readonly UrlsEndpoint $urls;
+    private FavoritesEndpoint $favorites;
+    private PandaEndpoint $panda;
+    private PhotosEndpoint $photos;
+    private PhotosetsEndpoint $photosets;
+    private TestEndpoint $test;
+    private UrlsEndpoint $urls;
 
     public function __construct(
         private ContainerInterface $locator,
@@ -177,6 +177,9 @@ final class FlickrApiClient implements ServiceSubscriberInterface
     {
         $client = clone $this;
         $client->config = $config;
+        unset(
+            $client->favorites, $client->panda, $client->photos, $client->photosets, $client->test, $client->url
+        );
 
         return $client;
     }

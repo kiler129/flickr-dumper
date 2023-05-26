@@ -112,11 +112,12 @@ abstract class SyncCollectionStrategy
         return $result;
     }
 
+    //@todo couldn't this whole thing (getOwnerUser + ensureOwnerNSID) be replaced by lookupUserByPathAlias?
     protected function getOwnerUser(string $nsid): User
     {
         $user = $this->userRepo->find($nsid);
         if ($user === null) {
-            $identity = $this->resolveOwner->lookupUserByPathAlias($nsid);
+            $identity = $this->resolveOwner->lookupUserIdentityByPathAlias($nsid);
             $user = new User($identity->nsid, $identity->userName, $identity->screenName);
             $this->userRepo->save($user, true);
         }
@@ -139,7 +140,7 @@ abstract class SyncCollectionStrategy
             return;
         }
 
-        $userIdentity = $this->resolveOwner->lookupUserByPathAlias($identity->getOwner());
+        $userIdentity = $this->resolveOwner->lookupUserIdentityByPathAlias($identity->getOwner());
         if ($userIdentity !== null) {
             $identity->setNSID($userIdentity->nsid);
             return;
@@ -399,18 +400,25 @@ abstract class SyncCollectionStrategy
         return false;
     }
 
+    /**
+     * @deprecated this doesn't work to switch after every page! Previously it was modifying $this->api which does
+     *             nothing when mid-iteration of a yield
+     */
     protected function getIdentitySwitchCallback(): ?callable
     {
+        return null;
+    }
+
+    protected function ensureIdentity(): void
+    {
         if (!$this->switchIdentities) {
-            return null;
+            return;
         }
 
-        return function (int $page): void {
-            $this->log->debug('Switching API identity during sync after page ' . $page);
-            $this->clientCfgFactory ??= $this->locator->get(ApiClientConfigFactory::class);
-            $cfg = $this->clientCfgFactory->getWithRandomClient();
-            $this->api = $this->api->withConfiguration($cfg);
-        };
+        $this->log->debug('Switching API identity during sync');
+        $this->clientCfgFactory ??= $this->locator->get(ApiClientConfigFactory::class);
+        $cfg = $this->clientCfgFactory->getWithRandomClient();
+        $this->api = $this->api->withConfiguration($cfg);
     }
 
     public static function getSubscribedServices(): array

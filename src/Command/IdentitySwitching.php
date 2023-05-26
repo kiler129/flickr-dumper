@@ -9,7 +9,7 @@ use Symfony\Component\Console\Input\InputOption;
 
 trait IdentitySwitching
 {
-    protected readonly bool $switchIdentities;
+    protected bool $switchIdentities;
 
     private function addSwitchIdentitiesOption(Command $command, bool $defaultEnabled = true): void
     {

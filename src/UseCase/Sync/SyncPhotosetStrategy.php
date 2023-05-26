@@ -13,6 +13,7 @@ use App\Flickr\Url\UrlParser;
 use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\PhotosetRepository;
 use App\Repository\Flickr\UserRepository;
+use App\Transformer\PhotoDtoEntityTransformer;
 use App\UseCase\FetchPhotoToDisk;
 use App\UseCase\ResolveOwner;
 use Doctrine\ORM\EntityManagerInterface;
@@ -31,12 +32,23 @@ final class SyncPhotosetStrategy extends SyncCollectionStrategy implements Servi
         LoggerInterface $log,
         UserRepository $userRepo,
         PhotoRepository $photoRepo,
+        PhotoDtoEntityTransformer $photoTransformer,
         ResolveOwner $resolveOwner,
         UrlParser $urlParser,
         EntityManagerInterface $om,
         private PhotosetRepository $repo
     ) {
-        parent::__construct($locator, $api, $log, $userRepo, $photoRepo, $resolveOwner, $urlParser, $om);
+        parent::__construct(
+            $locator,
+            $api,
+            $log,
+            $userRepo,
+            $photoRepo,
+            $photoTransformer,
+            $resolveOwner,
+            $urlParser,
+            $om
+        );
     }
 
     /**
@@ -111,13 +123,16 @@ final class SyncPhotosetStrategy extends SyncCollectionStrategy implements Servi
      */
     private function getAlbumPhotos(AlbumIdentity $albumIdentity): iterable
     {
+        if ($this->switchIdentities) {
+            $this->ensureIdentity();
+        }
+
         return $this->api->getPhotosets()
                          ->getPhotosIterable(
                              $albumIdentity->ownerNSID,
                              $albumIdentity->setId,
                              PhotosetsEndpoint::MAX_PER_PAGE,
                              self::PHOTO_EXTRAS,
-                             pageFinishCallback: $this->getIdentitySwitchCallback()
                          );
     }
 

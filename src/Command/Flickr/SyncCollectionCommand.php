@@ -89,7 +89,7 @@ class SyncCollectionCommand extends Command
                  'ignore-completed',
                  null,
                  InputOption::VALUE_NONE,
-                 'Do not attempt to sync collections that were synced at least once. This option takes priority over --always-verify-items.'
+                 'Do not attempt to sync collections that were synced at least once. This option takes priority over --distrust-timestamps.'
              )
              ->addOption(
                  'distrust-timestamps',

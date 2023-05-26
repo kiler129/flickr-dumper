@@ -6,6 +6,7 @@ namespace App\Flickr\Struct\Identity;
 use App\Exception\DomainException;
 use App\Flickr\Enum\MediaCollectionType;
 
+//@todo Fix me - setId should be an int
 final class AlbumIdentity extends MediaCollectionIdentity implements OwnerAwareIdentity
 {
     use OwnerAware;
