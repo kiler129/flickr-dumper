@@ -37,7 +37,7 @@ class Photoset implements PhotoCollection, UserOwnedEntity, Syncable
     #[ORM\JoinColumn(nullable: false, referencedColumnName: 'nsid')]
     private User $owner;
 
-    #[ORM\ManyToMany(targetEntity: Photo::class, fetch: 'EXTRA_LAZY')]
+    #[ORM\ManyToMany(targetEntity: Photo::class, fetch: 'EXTRA_LAZY', inversedBy: 'photosets')]
     private Collection $photos;
 
     #[ORM\Column]

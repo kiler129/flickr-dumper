@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Command\Flickr;
 
-use App\Entity\Flickr\Photo;
 use App\Entity\Flickr\Photoset;
 use App\Flickr\Struct\Identity\AlbumIdentity;
 use App\Flickr\Url\UrlParser;
@@ -45,7 +44,7 @@ class BlacklistPhotoset extends Command
              ->addArgument(
                  'photosets',
                  InputArgument::IS_ARRAY | InputArgument::REQUIRED,
-                 'One or more phototset/albums to blacklist (URLs)'
+                 'One or more phototset/albums to blacklist (URLs or files)'
              );
     }
 
@@ -53,24 +52,55 @@ class BlacklistPhotoset extends Command
     {
         $this->io = new SymfonyStyle($input, $output);
 
-        $ok = $fail = 0;
+        $total = 0;
+        $count = 0;
         foreach($input->getArgument('photosets') as $photoset) {
-            if ($this->blacklistPhotoset($photoset)) {
-                ++$ok;
-            } else {
-                ++$fail;
+            $fromFile = $this->blacklistFromFile($photoset);
+            if ($fromFile !== null) {
+                $total += $fromFile[0];
+                $count += $fromFile[1];
+                continue;
             }
+
+            ++$total;
+            $count += $this->blacklistPhotoset($photoset);
         }
 
-        if ($fail === 0) {
-            $this->io->success("Successfully blacklisted all $ok photosets");
+        if ($count === $total) {
+            $this->io->success(\sprintf('Successfully blacklisted all %d photosets', $count));
+
             return Command::SUCCESS;
         }
 
 
-        $this->io->warning("Blacklisted $ok photosets; $fail failed");
+        $this->io->warning(\sprintf('Blacklisted %d photosets; %d out of %d failed', $total, $total-$count, $total));
 
         return Command::FAILURE;
+    }
+
+    /**
+     * @return array{0: int, 1: int}|null [total,successful] or null if unable to read
+     */
+    private function blacklistFromFile(string $filePath): array|null
+    {
+        if (!\file_exists($filePath)) {
+            $this->log->debug('"{in}" is not an existing file - assuming URL', ['in' => $filePath]);
+            return null;
+        }
+
+        $this->log->info('"{in}" looks like a file - reading blacklist URLs from it', ['in' => $filePath]);
+        $lines = \file($filePath, \FILE_IGNORE_NEW_LINES|\FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            $this->io->error('Failed to open blacklist file at ' . $filePath);
+        }
+
+        $total = $ok = 0;
+        foreach ($lines as $line) {
+            ++$total;
+            $ok += $this->blacklistPhotoset($line);
+        }
+
+        return [$total, $ok];
     }
 
     private function blacklistPhotoset(string $photoset): bool

@@ -60,7 +60,7 @@ class User
 
     public function setUserName(string $userName): self
     {
-        $this->$userName = $userName;
+        $this->userName = $userName;
 
         return $this;
     }
@@ -135,5 +135,18 @@ class User
         $this->favorites = $favorites;
 
         return $this;
+    }
+
+    public function getDisplayableShortName(): string
+    {
+        if (isset($this->screenName)) {
+            return '@' . $this->screenName;
+        }
+
+        if (isset($this->userName)) {
+            return $this->userName;
+        }
+
+        return $this->nsid;
     }
 }

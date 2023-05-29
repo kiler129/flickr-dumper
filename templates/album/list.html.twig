@@ -1,0 +1,11 @@
+{% extends "base.html.twig" %}
+
+{# @var list \App\Entity\Flickr\Photoset[] #}
+
+{% block content %}
+    <ul>
+        {% for album in list %}
+            <li><a href="{{ url('app.photos_in_album', {'albumId': album.id}) }}">{{ album.title }}</a> <i>by {{ album.owner.userName }}</i> ({{ album.photos.count() }} photos{% if album.writeLocked %} 🚧{% endif %})</li>
+        {% endfor %}
+    </ul>
+{% endblock %}

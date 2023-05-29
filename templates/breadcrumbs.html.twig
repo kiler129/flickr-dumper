@@ -1,0 +1,13 @@
+{# @var trail \App\Struct\View\BreadcrumbDto[] #}
+
+<nav class="breadcrumbs">
+    <ul>
+        {% for item in trail %}
+            {% if item.url is null %}
+                <li>{{ item.title }}</li>
+            {% else %}
+                <li><a href="{{ item.url|default('#') }}">{{ item.title }}</a></li>
+            {% endif %}
+        {% endfor %}
+    </ul>
+</nav>

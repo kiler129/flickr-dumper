@@ -161,7 +161,7 @@ class SyncCollectionCommand extends Command
         $dlUC = ($this->fetchPhotoToDisk)(); //this will always get a new instance
         $dlUC->switchIdentities = $this->switchIdentities;
 
-        if ($output instanceof ConsoleOutputInterface) {
+        if ($output instanceof ConsoleOutputInterface && !isset($this->progressOutput)) {
             $this->progressOutput = $output;
             $logSection = $output->section();
             $this->consoleHandler->setOutput($logSection);

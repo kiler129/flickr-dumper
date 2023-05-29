@@ -34,6 +34,8 @@ use App\Struct\PhotoSize;
  * @property-read string $iconServer
  * @property-read int $iconFarm
  * @property-read int $views
+ * @property-read int $favesCount Number of favorites; undocumented feature; available: photosets*
+ * @property-read int $commentsCount Number of comments; undocumented feature; available: photosets*
  * @property-read array $tags
  * @property-read string $originalSecret
  * @property-read string $originalFormat
@@ -59,6 +61,8 @@ final class PhotoDto extends BaseDto
         'iconserver' => 'string',
         'iconfarm' => 'int',
         'views' => 'int',
+        'count_faves' => 'int',
+        'count_comments' => 'int',
         'originalsecret' => 'string',
         'originalformat' => 'string',
 
@@ -82,6 +86,8 @@ final class PhotoDto extends BaseDto
         'ownerScreenName' => 'pathalias',
         'iconServer' => 'iconserver',
         'iconFarm' => 'iconfarm',
+        'favesCount' => 'count_faves',
+        'commentsCount' => 'count_comments',
         'originalSecret' => 'originalsecret',
         'originalFormat' => 'originalformat',
     ];

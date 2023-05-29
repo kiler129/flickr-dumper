@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    {% block head %}
+        <link rel="stylesheet" href="/css/style.css"/>
+        <title>{%- block title -%}
+                {%- if extra['breadcrumbs'] is defined -%}
+                    {{ extra['breadcrumbs']|last.title }}
+                {%- else -%}
+                    Untitled Page
+                {% endif %}
+            {%- endblock -%}: Flickr Sync</title>
+    {% endblock %}
+</head>
+<body>
+<header>
+        {% block header %}
+                {% if extra['breadcrumbs'] is defined %}
+                        {{ include('breadcrumbs.html.twig', {trail: extra['breadcrumbs']}, with_context = false) }}
+                {% else %}
+                        <h2>{{ block('title') }}</h2>
+                {% endif %}
+        {% endblock %}
+</header>
+<div id="content">{% block content %}{% endblock %}</div>
+<footer>
+    {% block footer %}
+
+        Powered by <a href="https://github.com/kiler129/flickr-sync">Flickr Sync</a>
+    {% endblock %}
+</footer>
+</body>
+</html>

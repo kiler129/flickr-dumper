@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace App\Repository\Flickr;
 
 use App\Entity\Flickr\Photo;
+use App\Exception\InvalidArgumentException;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -17,6 +19,8 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class PhotoRepository extends ServiceEntityRepository
 {
+    use PhotoFilterAware;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Photo::class);
@@ -43,7 +47,6 @@ class PhotoRepository extends ServiceEntityRepository
     /**
      * @return list<Photo>
      */
-
     public function findLocked(): array
     {
         return $this->createQueryBuilder('p')
@@ -53,28 +56,51 @@ class PhotoRepository extends ServiceEntityRepository
         ;
     }
 
-//    /**
-//     * @return Photo[] Returns an array of Photo objects
-//     */
-//    public function findByExampleField($value): array
-//    {
-//        return $this->createQueryBuilder('p')
-//            ->andWhere('p.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->orderBy('p.id', 'ASC')
-//            ->setMaxResults(10)
-//            ->getQuery()
-//            ->getResult()
-//        ;
-//    }
+    public function createArbitraryFiltered(array $filters, string $sortField, string $sortDir): QueryBuilder
+    {
+        $classMeta = $this->getClassMetadata();
+        $qb = $this->createQueryBuilder('photo');
+        return $this->createFilteredPhotos($classMeta, $qb, $filters, $sortField, $sortDir);
 
-//    public function findOneBySomeField($value): ?Photo
-//    {
-//        return $this->createQueryBuilder('p')
-//            ->andWhere('p.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+        //foreach ($filters as $field => $value) {
+        //    if (!$classMeta->hasField($field)) {
+        //        throw new InvalidArgumentException(
+        //            \sprintf(
+        //                'Field "%s" used for filtering does not exist in entity "%s"',
+        //                $field,
+        //                $this->getClassName()
+        //            )
+        //        );
+        //    }
+        //
+        //    if (\is_string($value) && \str_contains($value, '%')) {
+        //        $qb->expr()->andX($qb->expr()->like('photo.' . $field, ':' . $field));
+        //        $qb->setParameter(':' . $field, $value);
+        //    }
+        //}
+        //
+        //if (!$classMeta->hasField($sortField)) {
+        //    throw new InvalidArgumentException(
+        //        \sprintf(
+        //            'Field "%s" used for sorting does not exist in entity "%s"',
+        //            $sortField,
+        //            $this->getClassName()
+        //        )
+        //    );
+        //}
+        //
+        //$order = \strtoupper($sortDir);
+        //if ($order !== 'ASC' && $order !== 'DESC') {
+        //    throw new InvalidArgumentException(
+        //        \sprintf(
+        //            'Invalid sort direction "%s" - it should be either ASC or DESC',
+        //            $sortDir,
+        //        )
+        //    );
+        //}
+        //
+        //$qb->orderBy('photo.' . $sortField, $order);
+        //
+        //return $qb;
+    }
 }

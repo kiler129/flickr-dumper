@@ -21,8 +21,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 final class HttpClientFactory
 {
     public function __construct(
-        private ?string $flickrApiProxy,
-        private ?string $flickrDownloadProxy,
+        //private ?string $flickrApiProxy,
+        //private ?string $flickrDownloadProxy,
         private ApiKeyProvider $apiKeyProvider,
         private AgentIdentityProvider $uaProvider,
     ) {

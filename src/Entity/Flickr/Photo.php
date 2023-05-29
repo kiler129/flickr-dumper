@@ -6,6 +6,7 @@ namespace App\Entity\Flickr;
 use App\Exception\LogicException;
 use App\Repository\Flickr\PhotoRepository;
 use App\Struct\PhotoSize;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -31,6 +32,12 @@ class Photo
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $dateLastUpdated = null;
 
+    #[ORM\Embedded]
+    public PhotoStats $remoteStats;
+
+    #[ORM\Embedded]
+    public PhotoRanking $localRanking;
+
     #[ORM\Column]
     private \DateTimeImmutable $dateLastRetrieved;
 
@@ -47,18 +54,22 @@ class Photo
     #[ORM\JoinColumn(nullable: false, referencedColumnName: 'nsid')]
     private User $owner;
 
-    #[ORM\Column]
-    private int $views = 0;
-
     #[ORM\Embedded]
     private PhotoStatus $status;
 
     #[ORM\Column]
     private array $apiData = [];
 
+
+    //These are mapped to allow DQL access, but should NOT be operated from within the entity
+    #[ORM\ManyToMany(targetEntity: Photoset::class, mappedBy: 'photos')]
+    private Collection $photosets;
+
     public function __construct(int $id, User $owner, PhotoSize $fileVersion, string $cdnUrl, ?\DateTimeInterface $retrieved = null)
     {
         $this->id = $id;
+        $this->remoteStats = new PhotoStats();
+        $this->localRanking = new PhotoRanking();
         $this->status = new PhotoStatus();
 
         $this->setOwner($owner);
@@ -208,18 +219,6 @@ class Photo
     public function setOwner(?User $owner): self
     {
         $this->owner = $owner;
-
-        return $this;
-    }
-
-    public function getViews(): int
-    {
-        return $this->views;
-    }
-
-    public function setViews(int $views): self
-    {
-        $this->views = $views;
 
         return $this;
     }

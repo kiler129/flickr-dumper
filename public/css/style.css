@@ -1,0 +1,214 @@
+body {
+    background: #333333;
+    color: #fefefe;
+    font-family: Arial, sans-serif;
+}
+
+a {
+    color: #00bfff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: #fefefe;
+    /*margin: 0;*/
+    /*padding: 0;*/
+    font-weight: bold;
+}
+
+p {
+    margin: 0;
+    padding: 0;
+}
+
+ul, ol {
+    /*margin: 0;*/
+    /*padding: 0;*/
+    margin-left: 1.5em;
+}
+
+li {
+    margin: 0;
+    padding: 0;
+    margin-bottom: 0.5em;
+}
+
+ul li {
+    list-style-type: disc;
+}
+
+ol li {
+    list-style-type: decimal;
+}
+
+/** Styling for breadcrumbs **/
+.breadcrumbs {
+    background-color: #333;
+    padding: 10px;
+}
+
+.breadcrumbs ul {
+    list-style: none; /* Remove default list styles */
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+}
+
+.breadcrumbs li {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 5px;
+    height: 24px;
+    border-radius: 4px;
+    padding: 0
+
+}
+
+.breadcrumbs li:last-child {
+    font-weight: bold;
+    font-size: 1.3em;
+}
+
+.breadcrumbs li a,
+.breadcrumbs li::after {
+    color: #888;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.breadcrumbs li::after {
+    content: "";
+    display: inline-block;
+    margin-left: 5px;
+    width: 0;
+    height: 0;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 4px solid #888;
+}
+
+.breadcrumbs li:last-child::after {
+    display: none;
+}
+
+.breadcrumbs li:not(:last-child):hover {
+    background-color: #555;
+
+}
+
+.breadcrumbs li:not(:last-child):hover a,
+.breadcrumbs li:hover::after {
+    color: #f0f0f0;
+}
+
+
+
+
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    grid-gap: 10px;
+    align-items: center;
+    justify-items: center;
+    margin: auto;
+}
+
+.grid .grid-box {
+    position: relative;
+}
+
+.grid .grid-box img {
+    max-width: 100%;
+    height: auto;
+    box-shadow: 0 2px 10px rgba(200, 200, 200, 0.3);
+}
+
+.grid .grid-box .overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+  height: 0;
+  padding: 5px;
+    background-color: rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.grid .grid-box:hover .overlay {
+  opacity: 1;
+  height: auto;
+}
+
+.grid .grid-box .overlay-content {
+    color: #fff;
+    text-align: center;
+}
+
+/* Styling for the pagination container */
+.pagination {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+/* Styling for pagination items */
+.pagination__item {
+    color: #fff;
+    padding: 8px 12px;
+    margin: 0 2px;
+    border-radius: 4px;
+    text-decoration: none;
+    background-color: #333;
+}
+
+/* Styling for the current page item */
+.pagination__item--current-page {
+    background-color: #555;
+}
+
+/* Styling for the separator item */
+.pagination__item--separator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Styling for disabled items */
+.pagination__item--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Styling for the "Next" page item */
+.pagination__item--next-page {
+    background-color: #555;
+}
+
+/* Styling for the "Previous" page item */
+.pagination__item--previous-page {
+    background-color: #555;
+}
+
+.vote-positive {
+    color: greenyellow;
+    font-weight: bold;
+}
+
+.vote-negative {
+    color: red;
+}
+
+footer {
+    font-size: small;
+    border-top: 1px gray;
+    display: block;
+}

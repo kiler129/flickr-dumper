@@ -1,0 +1,13 @@
+{% extends "base.html.twig" %}
+
+{% block pagination %}
+    {{ pagerfanta(pager) }}
+{% endblock %}
+
+{% block content %}
+    <ul>
+        <li><a href="{{ url('app.photos_all') }}">All photos</a></li>
+        <li><a href="{{ url('app.users_list') }}">Users</a></li>
+        <li><a href="{{ url('app.albums_all') }}">Albums</a></li>
+    </ul>
+{% endblock %}

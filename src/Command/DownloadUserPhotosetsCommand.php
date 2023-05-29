@@ -22,7 +22,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(
     name: 'flickr:download-user-photosets',
-    aliases: ['flickr:downlod-user-albums'],
+    aliases: ['flickr:download-user-albums'],
     description: 'Downloads all user photosets (aka. albums)'
 )]
 class DownloadUserPhotosetsCommand extends BaseDownloadCommand
@@ -57,6 +57,9 @@ class DownloadUserPhotosetsCommand extends BaseDownloadCommand
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $output->write('This command is deprecated');
+        die;
+
         $parentExit = parent::execute($input, $output);
         if ($parentExit !== Command::SUCCESS) {
             return $parentExit;

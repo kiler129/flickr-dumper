@@ -20,11 +20,16 @@ use App\Repository\Flickr\UserRepository;
 use App\Struct\PhotoExtraFields;
 use App\Struct\PhotoSize;
 use App\Transformer\PhotoDtoEntityTransformer;
+use App\UseCase\FetchPhotoToDisk;
 use App\UseCase\ResolveOwner;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 
+/**
+ * @phpstan-import-type TSyncCallback from FetchPhotoToDisk
+ */
 abstract class SyncCollectionStrategy
 {
     protected const PHOTO_EXTRAS = [
@@ -35,6 +40,10 @@ abstract class SyncCollectionStrategy
         PhotoExtraFields::VIEWS,
         PhotoExtraFields::MEDIA,
         PhotoExtraFields::PATH_ALIAS, //screenname; for e.g. faves we should also grab owner name to allow easier lookup
+
+        //These may or may not be available (undocumented features)
+        PhotoExtraFields::FAVES_COUNT,
+        PhotoExtraFields::COMMENTS_COUNT,
 
         //We're only requesting sensibly-sized pictures, not thumbnails
         PhotoExtraFields::URL_MEDIUM_640,
@@ -112,7 +121,9 @@ abstract class SyncCollectionStrategy
         return $result;
     }
 
-    //@todo couldn't this whole thing (getOwnerUser + ensureOwnerNSID) be replaced by lookupUserByPathAlias?
+    /**
+     * @todo couldn't this whole thing (getOwnerUser + ensureOwnerNSID) be replaced by lookupUserByPathAlias?
+     */
     protected function getOwnerUser(string $nsid): User
     {
         $user = $this->userRepo->find($nsid);
@@ -236,64 +247,95 @@ abstract class SyncCollectionStrategy
     }
 
     /**
-     * @param iterable<array> $photos
+     * @param iterable<array<mixed>> $photos
      * @param TSyncCallback $sink
      */
     protected function syncCollectionPhotos(PhotoCollection $collection, iterable $photos, callable $sink): bool
     {
+        $colId = $collection->getUserReadableId();
+        $this->log->debug('Locking {col} for write', ['col' => $colId]);
+        $collection->lockForWrite();
+        $this->om->persist($collection);
+        $this->om->flush();
+        
         $localPhotos = $collection->getPhotos();
-        $this->log->info('{col} photos syncing started', ['col' => $collection->getUserReadableId()]);
+        $this->log->info('{col} photos syncing started', ['col' => $colId]);
 
         $result = true;
         foreach ($photos as $apiPhoto) {
             $remotePhoto = PhotoDto::fromGenericApiResponse($apiPhoto);
-            $photoId = $remotePhoto->id;
-            $remoteSize = $remotePhoto->getLargestSize();
-
-            if ($remoteSize === null) {
-                $this->log->warning(
-                    'Photo id={phid} returned no available sizes from API - skipping', ['phid' => $photoId]
-                );
-                continue;
-            }
-
-            $localPhoto = $this->photoRepo->find($photoId);
-            $isNewLocalPhoto = false; //we need this variable as after metadata update new and old photos look the same
-            if ($localPhoto === null) { //nothing matched => new photo
-                $this->log->info(
-                    '{col} new photo id={phid} size={size}',
-                    ['col' => $collection->getUserReadableId(), 'phid' => $photoId, 'size' => $remoteSize->name]
-                );
-
-                //create a SCAFFOLDING of a photo only
-                $owner = $this->resolveOwner->resolveOwnerUser($remotePhoto, $collection);
-                $localPhoto = new Photo(
-                    $photoId, $owner, $remoteSize, $remotePhoto->getSizeUrl($remoteSize)
-                );
-                $isNewLocalPhoto = true;
-            } elseif (!$this->verifyPhotoState($localPhoto)) { //the state of new photos is known so only check old
-                continue; //Skipped by state failure of to-be updated photo
-            }
-
-            //Similar to collections, regardless if the photo has been updated on the remote we want to sync metadata
-            // as some of them don't trigger photo being updated (e.g. number of views)
-            $localLastUpdated = $localPhoto->getDateLastUpdated(); //the metadata update may overwrite this for existing
-            $this->photoTransformer->setPhotoMetadata($localPhoto, $remotePhoto);
-            if (!$localPhotos->contains($localPhoto)) {
-                $this->log->info(
-                    '{colid}: linking photo id={phid}',
-                    ['colid' => $collection->getUserReadableId(), 'phid' => $photoId]
-                );
-                $localPhotos->add($localPhoto);
-            }
-            $this->photoRepo->save($localPhoto, true);
-
-            if ($this->shouldSyncPhoto($photoId, $isNewLocalPhoto, $localPhoto, $localLastUpdated, $remotePhoto, $remoteSize)) {
-                $result = $sink($localPhoto) || $result;
-            }
+            $result = $this->trySyncPhoto($remotePhoto, $collection, $localPhotos, $sink) || $result;
         }
 
+        $this->log->debug('Unlocking {col} for write', ['col' => $colId]);
+        $collection->unlockForWrite();
+        $this->om->persist($collection);
+        $this->om->flush();
+
         return $result;
+    }
+
+    /**
+     * @param TSyncCallback $sink
+     */
+    public function trySyncPhoto(
+        PhotoDto $remotePhoto,
+        PhotoCollection $collection,
+        Collection $localPhotos,
+        callable $sink,
+    ): bool {
+        $photoId = $remotePhoto->id;
+        $remoteSize = $remotePhoto->getLargestSize();
+
+        if ($remoteSize === null) {
+            $this->log->warning('Photo id={phid} no available sizes from API - skipping', ['phid' => $photoId]);
+
+            return true; //no-op but not an error per-se
+        }
+
+        $localPhoto = $this->photoRepo->find($photoId);
+        $isNewLocalPhoto = false; //we need this variable as after metadata update new and old photos look the same
+        if ($localPhoto === null) { //nothing matched => new photo
+            $this->log->info(
+                '{col} new photo id={phid} size={size}',
+                ['col' => $collection->getUserReadableId(), 'phid' => $photoId, 'size' => $remoteSize->name]
+            );
+
+            //create a SCAFFOLDING of a photo only
+            $owner = $this->resolveOwner->resolveOwnerUser($remotePhoto, $collection);
+            $localPhoto = new Photo(
+                $photoId, $owner, $remoteSize, $remotePhoto->getSizeUrl($remoteSize)
+            );
+            $isNewLocalPhoto = true;
+        } elseif (!$this->verifyPhotoState($localPhoto)) { //the state of new photos is known so only check old
+            return true; //Skipped by state failure of to-be updated photo but it's exepcted (so non-error condition)
+        }
+
+        //Similar to collections, regardless if the photo has been updated on the remote we want to sync metadata
+        // as some of them don't trigger photo being updated (e.g. number of views)
+        $localLastUpdated = $localPhoto->getDateLastUpdated(); //the metadata update may overwrite this for existing
+        $this->photoTransformer->setPhotoMetadata($localPhoto, $remotePhoto);
+        if (!$localPhotos->contains($localPhoto)) {
+            $this->log->info(
+                '{colid}: linking photo id={phid}',
+                ['colid' => $collection->getUserReadableId(), 'phid' => $photoId]
+            );
+            $localPhotos->add($localPhoto);
+        }
+        $this->photoRepo->save($localPhoto, true);
+
+        if ($this->shouldSyncPhoto(
+            $photoId,
+            $isNewLocalPhoto,
+            $localPhoto,
+            $localLastUpdated,
+            $remotePhoto,
+            $remoteSize
+        )) {
+            return $sink($localPhoto);
+        }
+
+        return true;
     }
 
     private function verifyPhotoState(Photo $photo): bool

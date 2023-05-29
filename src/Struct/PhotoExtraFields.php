@@ -24,6 +24,10 @@ enum PhotoExtraFields: string
     case MEDIA           = 'media';
     case PATH_ALIAS      = 'path_alias';
 
+    //Undocumented ones
+    case FAVES_COUNT     = 'count_faves';
+    case COMMENTS_COUNT  = 'count_comments';
+
 
     //This list should mimic PhotoSize EXACTLY but with "url_" prefix. Some of these are undocumented.
     case URL_SQUARE_75      = 'url_sq';

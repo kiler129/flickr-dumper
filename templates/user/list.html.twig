@@ -1,0 +1,11 @@
+{% extends "base.html.twig" %}
+
+{# @var list \App\Entity\Flickr\User[] #}
+
+{% block content %}
+    <ul>
+        {% for user in list %}
+            <li>{{ user.userName }}{% if user.screenName is not empty %} <i>(@{{ user.screenName }})</i>{% endif %}</li>
+        {% endfor %}
+    </ul>
+{% endblock %}

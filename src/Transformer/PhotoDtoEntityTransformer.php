@@ -5,11 +5,18 @@ namespace App\Transformer;
 
 use App\Entity\Flickr\Photo;
 use App\Flickr\Struct\PhotoDto;
+use Psr\Log\LoggerInterface;
 
 class PhotoDtoEntityTransformer
 {
+    public function __construct(private LoggerInterface $log)
+    {
+    }
+
     public function setPhotoMetadata(Photo $local, PhotoDto $apiPhoto, ?\DateTimeInterface $lastRetrieved = null): void
     {
+        $this->log->debug('Updating metadata of photo id={phid} from API version', ['phid' => $local->getId()]);
+
         $local->setApiData($apiPhoto->apiData)
               ->setDateLastRetrieved($lastRetrieved ?? new \DateTimeImmutable());
 
@@ -35,7 +42,15 @@ class PhotoDtoEntityTransformer
         }
 
         if (isset($apiPhoto->views)) {
-            $local->setViews($apiPhoto->views);
+            $local->remoteStats->views = $apiPhoto->views;
+        }
+
+        if (isset($apiPhoto->favesCount)) {
+            $local->remoteStats->favorites = $apiPhoto->favesCount;
+        }
+
+        if (isset($apiPhoto->commentsCount)) {
+            $local->remoteStats->comments = $apiPhoto->commentsCount;
         }
 
         //We're not updating version here are presumably the caller has more knowledge about sizes etc

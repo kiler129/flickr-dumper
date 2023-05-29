@@ -13,8 +13,8 @@ parameters:
     app.flickr_proxies: '%env(csv:default::FLICKR_PROXIES)%'
     app.flickr_batch_size: '%env(int:FLICKR_BATCH_SIZE)%'
 
-    app.flickr_api_proxy: '%env(string:FLICKR_API_PROXY)%' # deprecated
-    app.flickr_download_proxy: '%env(string:FLICKR_DOWNLOAD_PROXY)%' # deprecated
+#    app.flickr_api_proxy: '%env(string:FLICKR_API_PROXY)%' # deprecated
+#    app.flickr_download_proxy: '%env(string:FLICKR_DOWNLOAD_PROXY)%' # deprecated
 
 
 services:
@@ -23,11 +23,11 @@ services:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
 
-        bind:
-            $flickrApiProxy: '%app.flickr_api_proxy%'
-            $flickrDownloadProxy: '%app.flickr_download_proxy%'
-            $flickrApiHttpClient: '@app.flickr_api_httpclient'
-            $flickrDownloadHttpClient: '@app.flickr_download_httpclient'
+#        bind:
+#            $flickrApiProxy: '%app.flickr_api_proxy%'
+#            $flickrDownloadProxy: '%app.flickr_download_proxy%'
+#            $flickrApiHttpClient: '@app.flickr_api_httpclient'
+#            $flickrDownloadHttpClient: '@app.flickr_download_httpclient'
 
     _instanceof:
         # usecase has state for options

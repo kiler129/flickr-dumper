@@ -1,0 +1,102 @@
+{% extends "base.html.twig" %}
+
+{# @var pager \App\Entity\Flickr\Photo[] #}
+
+{% block head %}
+    {{ parent() }}
+    <script>
+        window.addEventListener("load", (event) => {
+            function vote(bucketId, voteUrl) {
+                const target = document.getElementById(bucketId);
+                target.innerHTML = '🗳️ ... 🗳️';
+
+                fetch(voteUrl, {
+                    method: 'POST',
+                    headers: { 'Accept': 'text/plain', },
+                    body: ''
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Request failed with status ${response.status}: ${response.statusText}`);
+                        }
+
+                        return response.text();
+                    })
+                    .then(responseText => {
+                        target.innerHTML = '🗳 ' + responseText + ' ✅'
+                    })
+                    .catch(error => alert(error))
+            }
+
+            document.getElementById('sortOrder').addEventListener('change', (e) => {
+                const newSort = e.target.options[e.target.selectedIndex].dataset;
+                const url = new URL(window.location.href);
+                url.searchParams.set('orderBy', newSort.field);
+                url.searchParams.set('orderDir', newSort.dir);
+
+                window.location.href = url;
+                // sortOrder = document.getElementById('sortOrder');
+                // console.log(sortOrder.value);
+            });
+
+            document.querySelectorAll('[data-vote-bucket-id]').forEach((el) => {
+                el.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    vote(e.target.dataset.voteBucketId, e.target.dataset.action);
+                })
+            });
+        });
+    </script>
+{% endblock %}
+
+{% block pagination %}
+    {{ pagerfanta(pager) }}
+{% endblock %}
+
+{% block content %}
+{#    {{ dump() }}#}
+    <label for="sortOrder">Sort by:</label>
+    <select id="sortOrder">
+        {% for field, options in suggestedSort %}
+            {% for dir, dirName in options['dir'] %}
+                <option data-field="{{ field }}" data-dir="{{ dir }}"
+                        {% if currentSort['field'] == field and currentSort['dir'] == dir %}selected{% endif %}>
+                    {{ options['name'] }} {{ dirName }}
+                </option>
+            {% endfor %}
+            {% if not loop.last %}<option disabled>- - - -</option>{% endif %}
+        {% endfor %}
+    </select>
+    {{ block('pagination') }}
+
+    <main class="grid">
+        {% for photo in pager %}
+            <div class="grid-box">
+                    <a href="{{ url('app.photo_file_bin', {'photoId': photo.id}) }}" target="_blank">
+                        <img src="{{ url('app.photo_thumb_bin', {'photoId': photo.id}) }}" alt="{{ photo.description }}" />
+                    </a>
+                    <div class="overlay">
+                        <div class="overlay-content">
+                            👀 {{ photo.remoteStats.views|default('?') }} |
+                            ⭐ {{ photo.remoteStats.favorites|default('?') }} |
+                            📷 {{ photo.dateTaken|default(photo.dateUploaded)|default(photo.dateUploaded)|default(photo.dateLastRetrieved)|date('Y-m-d') }} |
+
+                            <span id="vote{{ photo.id }}">
+                                <a href="#" data-vote-bucket-id="vote{{ photo.id }}" data-action="{{ url('app.photo_vote_up', {'photoId': photo.id}) }}">👍</a>
+                                {% if photo.localRanking.voteRanking > 0 %}
+                                    <span class="vote-positive">+{{ photo.localRanking.voteRanking }}</span>
+                                {% elseif photo.localRanking.voteRanking < 0 %}
+                                    <span class="vote-negative">{{ photo.localRanking.voteRanking }}</span>
+                                {% else %}
+                                   <span>0</span>
+                                {% endif %}
+                                <a href="#" data-vote-bucket-id="vote{{ photo.id }}" data-action="{{ url('app.photo_vote_down', {'photoId': photo.id}) }}">👎</a>
+                            </span>
+                        </div>
+                    </div>
+            </div>
+        {% endfor %}
+    </main>
+
+    {{ block('pagination') }}
+{% endblock %}

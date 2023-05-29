@@ -17,6 +17,10 @@ interface PhotoCollection
 
     public function isDeleted(): bool;
 
+    public function lockForWrite(): void;
+
+    public function unlockForWrite(): self;
+
     public function isWriteLocked(): bool;
 
     public function getUserReadableId(): string;

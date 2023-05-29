@@ -166,7 +166,21 @@ class ResolveOwner
             ['user' => $screenNameOrNSID, 'nsid' => $data['id']]
         );
 
-        $user = new User($data['id'], $data['username']['_content'], $screenName);
+        //The user may still exist in the db but we don't have their screen name! Looking up by profile doesn't give
+        //us the screen name unfortunately so it still may be missing
+        $user = $this->userRepo->find($data['id']);
+        if ($user !== null) {
+            $this->log->debug(
+                'Found user {user} is already in the DB - updating details',
+                ['user' => $screenNameOrNSID, 'nsid' => $data['id']]
+            );
+
+            $user->setUserName($data['username']['_content'])
+                 ->setScreenName($screenName);
+        } else {
+            $user = new User($data['id'], $data['username']['_content'], $screenName);
+        }
+
         $this->userRepo->save($user, true);
 
         return $user;
