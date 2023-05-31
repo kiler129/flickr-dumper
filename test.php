@@ -1,22 +1,10 @@
 <?php
 declare(strict_types=1);
 
-exit;
+use Symfony\Component\HttpClient\HttpClient;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
-//require 'vendor/autoload.php';
+require 'vendor/autoload.php';
 
-function foo(): string
-{
-    return 'x';
-}
-
-//$x = '';
-$y = [];
-$i = 1_000_000;
-while (--$i >= 0) {
-    //$x .= foo();
-    $y[] = foo();
-}
-
-//echo strlen($x) . " bytes\n";
-echo \count($y) . " elements\n";
+dd(json_encode(\shell_exec('pngcheck /Volumes/Untitled/flsync/14373158_N05/2008/05/2503907469-medium_640.jpg')));

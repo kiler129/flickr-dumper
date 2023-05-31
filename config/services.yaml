@@ -7,11 +7,22 @@ parameters:
     env(FLICKR_API_KEYS): ''
     env(FLICKR_PROXIES): ''
     env(FLICKR_BATCH_SIZE): 5
+    env(FLICKR_API_MAX_RETRIES): 5
+    env(FLICKR_API_RETRY_BASE_DELAY): 1500
+    env(FLICKR_CDN_MAX_RETRIES): 10
+    env(FLICKR_CDN_RETRY_BASE_DELAY): 500
+
 
     app.storage_root: '%env(STORAGE_LOCATION)%'
     app.flickr_api_keys: '%env(csv:default::FLICKR_API_KEYS)%'
     app.flickr_proxies: '%env(csv:default::FLICKR_PROXIES)%'
     app.flickr_batch_size: '%env(int:FLICKR_BATCH_SIZE)%'
+    app.flickr_api_max_retries: '%env(int:FLICKR_API_MAX_RETRIES)%'
+    app.flickr_api_retry_base_delay: '%env(int:FLICKR_API_RETRY_BASE_DELAY)%'
+    app.flickr_api_retry_delay_multiplier: 1.5
+    app.flickr_cdn_max_retries: '%env(int:FLICKR_CDN_MAX_RETRIES)%'
+    app.flickr_cdn_retry_base_delay: '%env(int:FLICKR_CDN_RETRY_BASE_DELAY)%'
+    app.flickr_cdn_retry_delay_multiplier: 2
 
 #    app.flickr_api_proxy: '%env(string:FLICKR_API_PROXY)%' # deprecated
 #    app.flickr_download_proxy: '%env(string:FLICKR_DOWNLOAD_PROXY)%' # deprecated
@@ -26,8 +37,8 @@ services:
 #        bind:
 #            $flickrApiProxy: '%app.flickr_api_proxy%'
 #            $flickrDownloadProxy: '%app.flickr_download_proxy%'
-#            $flickrApiHttpClient: '@app.flickr_api_httpclient'
-#            $flickrDownloadHttpClient: '@app.flickr_download_httpclient'
+#            $flickrApiHttpClient: '@app.flickr_api_http_client'
+#            $flickrDownloadHttpClient: '@app.flickr_download_http_client'
 
     _instanceof:
         # usecase has state for options
@@ -52,12 +63,25 @@ services:
     App\UseCase\FetchPhotoToDisk:
         shared: false
         arguments:
+            $httpClient: '@app.flickr_cdn_http_client'
             $batchSize: '%app.flickr_batch_size%'
     App\Command\Flickr\SyncCollectionCommand:
         arguments:
             $fetchPhotoToDisk: !service_closure '@App\UseCase\FetchPhotoToDisk'
             $consoleHandler: '@monolog.handler.console'
 
+
+    app.flickr_cdn_http_client:
+        class: Symfony\Component\HttpClient\RetryableHttpClient
+        arguments:
+            $strategy: '@app.flickr_cdn_http_retry_strategy'
+            $maxRetries: '%app.flickr_cdn_max_retries%'
+
+    app.flickr_cdn_http_retry_strategy:
+        class: App\Flickr\Client\CdnRetryStrategy
+        arguments:
+            $delayMs: '%app.flickr_cdn_retry_base_delay%'
+            $multiplier: '%app.flickr_cdn_retry_delay_multiplier%'
 
     # usecase has state for options, see cmd bellow
     App\UseCase\ImportFiles\ImportLocalFiles:
@@ -93,20 +117,19 @@ services:
             $config: !service
                 class: App\Flickr\Client\ApiClientConfig
                 factory: ['@App\Flickr\Factory\ApiClientConfigFactory', 'getWithCommonClient']
+            $httpClient: '@app.flickr_api_http_client'
 
-    app.flickr_api_httpclient:
-        deprecated:
-            package: 'kiler129/flickr-sync'
-            version: '0.1'
-            message: '%service_id%: Use FlickrApiClient directly'
-        class: Symfony\Contracts\HttpClient\HttpClientInterface
-        factory:  ['@App\Factory\HttpClientFactory', 'createApiHttpClient']
+    app.flickr_api_http_client:
+        class: Symfony\Component\HttpClient\RetryableHttpClient
+        arguments:
+            $strategy: '@app.flickr_api_http_retry_strategy'
+            $maxRetries: '%app.flickr_api_max_retries%'
 
-    app.flickr_download_httpclient:
-        deprecated:
-            package: 'kiler129/flickr-sync'
-            version: '0.1'
-            message: '%service_id%: Use batch downlaoder service (tbd) instead'
-        class: Symfony\Contracts\HttpClient\HttpClientInterface
-        factory:  ['@App\Factory\HttpClientFactory', 'createDownloadHttpClient']
+    app.flickr_api_http_retry_strategy:
+        class: Symfony\Component\HttpClient\Retry\GenericRetryStrategy
+        arguments:
+            $delayMs: '%app.flickr_api_retry_base_delay%'
+            $multiplier: '%app.flickr_api_retry_delay_multiplier%'
+
+
 

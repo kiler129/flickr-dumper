@@ -191,13 +191,26 @@ tbody tr:hover {
     bottom: 0;
     left: 0;
     width: 100%;
-  height: 0;
   padding: 5px;
     background-color: rgba(0, 0, 0, 0.7);
-    opacity: 0;
     transition: opacity 0.2s ease;
   overflow: hidden;
   box-sizing: border-box;
+
+    /* on non-touch it's 1 on hover only */
+    height: auto;
+    opacity: 1;
+
+}
+@media (pointer: fine) {
+    .grid .grid-box .overlay {
+        opacity: 0;
+        height: 0;
+    }
+    .grid .grid-box:hover .overlay {
+        opacity: 1;
+        height: auto;
+    }
 }
 
 .grid .grid-box .pre-overlay {
@@ -208,17 +221,14 @@ tbody tr:hover {
     opacity: 1;
     height: auto;
 }
-
-
-.grid .grid-box:hover .overlay {
-  opacity: 1;
-  height: auto;
+@media (pointer: fine) {
+    .grid .grid-box:hover .pre-overlay {
+        opacity: 0;
+        height: 0;
+    }
 }
 
-.grid .grid-box:hover .pre-overlay {
-  opacity: 0;
-  height: 0;
-}
+
 
 .grid .grid-box .overlay-content {
     color: #fff;

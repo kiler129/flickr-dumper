@@ -55,8 +55,9 @@ class StorageProvider
     {
         $date = $photo->getDateTaken() ?? $photo->getDateUploaded() ?? $photo->getDateLastRetrieved();
 
-        $path = $this->storageRoot . '/' . \str_replace('@', '_', $photo->getOwner()->getNsid()) .
-                '/' . $date->format('Y/m');
+        $ownerPathNSID =  \str_replace('@', '_', $photo->getOwner()->getNsid());
+        $path = $this->storageRoot . '/files/' . $ownerPathNSID[0] . $ownerPathNSID[1] . '/' . $ownerPathNSID . '/' .
+                $date->format('Y/m');
         $this->fs->mkdir($path);
 
         return $path;
