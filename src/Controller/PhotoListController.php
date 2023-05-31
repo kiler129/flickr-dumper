@@ -8,8 +8,11 @@ use App\Entity\Flickr\User;
 use App\Exception\LogicException;
 use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\PhotosetRepository;
+use App\Repository\Flickr\UserFavoritesRepository;
 use App\Struct\View\BreadcrumbDto;
+use App\Struct\View\PhotoPredefinedFilter;
 use App\Struct\View\PhotoSuggestedSort;
+use App\UseCase\View\GenerateBreadcrumbs;
 use Pagerfanta\Doctrine\ORM\QueryAdapter;
 use Pagerfanta\Pagerfanta;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
@@ -25,18 +28,13 @@ use Symfony\Component\Routing\Annotation\Route;
  */
 class PhotoListController extends AbstractController
 {
-    public function __construct(private PhotoRepository $photoRepo, private PhotosetRepository $photosetRepo)
+    public function __construct(private PhotoRepository $photoRepo, private PhotosetRepository $photosetRepo, private GenerateBreadcrumbs $breadcrumbsUC)
     {
     }
 
     #[Route('/photo/all', methods: ['GET'], name: 'app.photos_all')]
     public function showAll(Request $request): Response
     {
-        $breadcrumbs = [
-            new BreadcrumbDto('Home', $this->generateUrl('app.index')),
-            new BreadcrumbDto('All Photos'),
-        ];
-
         return $this->displayGenericCollection(
             $request,
             fn(array $filters, string $orderBy, string $orderDir) => $this->photoRepo->createArbitraryFiltered(
@@ -44,7 +42,7 @@ class PhotoListController extends AbstractController
                 $orderBy,
                 $orderDir
             ),
-            ['breadcrumbs' => $breadcrumbs]
+            ['breadcrumbs' => $this->breadcrumbsUC->forAllPhotos()]
         );
     }
 
@@ -66,13 +64,6 @@ class PhotoListController extends AbstractController
             );
         }
 
-        $breadcrumbs = [
-            new BreadcrumbDto('Home', $this->generateUrl('app.index')),
-            new BreadcrumbDto($user->getDisplayableShortName(), $this->generateUrl('app.user_resources', ['userId' => $user->getNsid()])),
-            new BreadcrumbDto('Albums', $this->generateUrl('app.user_resources_albums', ['userId' => $user->getNsid()])),
-            new BreadcrumbDto($album->getTitle() ?? \sprintf('Album #%d', $album->getId())),
-        ];
-
         return $this->displayGenericCollection(
             $request,
             fn(array $filters, string $orderBy, string $orderDir) => $this->photosetRepo->createForAllPhotosInAlbum(
@@ -81,7 +72,39 @@ class PhotoListController extends AbstractController
                 $orderBy,
                 $orderDir
             ),
-            ['breadcrumbs' => $breadcrumbs]
+            ['breadcrumbs' => $this->breadcrumbsUC->forAlbum($user, $album)]
+        );
+    }
+
+    #[Route('/user/{userId}/photos', methods: ['GET'], name: 'app.user_resources_photos')]
+    public function showUserPhotos(Request $request, #[MapEntity(mapping: ['userId' => 'nsid'])] User $user,)
+    {
+        return $this->displayGenericCollection(
+            $request,
+            fn(array $filters, string $orderBy, string $orderDir) => $this->photoRepo->createArbitraryFiltered(
+                ['owner' => $user->getNsid()] + $filters,
+                $orderBy,
+                $orderDir
+            ),
+            ['breadcrumbs' => $this->breadcrumbsUC->forUserPhotos($user)]
+        );
+    }
+
+    #[Route('/user/{userId}/faves', methods: ['GET'], name: 'app.user_resources_favorites')]
+    public function showUserFavoritePhotos(
+        Request $request,
+        #[MapEntity(mapping: ['userId' => 'nsid'])] User $user,
+        UserFavoritesRepository $userFavesRepo,
+    ) {
+        return $this->displayGenericCollection(
+            $request,
+            fn(array $filters, string $orderBy, string $orderDir) => $userFavesRepo->createForAllPhotosInFavorites(
+                $user->getNsid(),
+                $filters,
+                $orderBy,
+                $orderDir
+            ),
+            ['breadcrumbs' => $this->breadcrumbsUC->forUserFavorites($user)]
         );
     }
 
@@ -96,7 +119,7 @@ class PhotoListController extends AbstractController
         $page = $request->query->getInt('page', 1);
 
         $filters['status.deleted'] ??= false;
-        $filters['status.blacklisted'] ??= false;
+        //$filters['status.blacklisted'] ??= false;
         $filters['status.writeLockedAt'] ??= null;
 
         $pagerfanta = new Pagerfanta(new QueryAdapter($queryBuilder($filters, $orderBy, $orderDir)));
@@ -107,7 +130,9 @@ class PhotoListController extends AbstractController
                              [
                                  'pager' => $pagerfanta,
                                  'suggestedSort' => PhotoSuggestedSort::getAll(),
+                                 'predefinedFilters' => PhotoPredefinedFilter::getAll(),
                                  'currentSort' => ['field' => $orderBy, 'dir' => $orderDir],
+                                 'currentFilters' => $filters,
                                  'extra' => $extraParams,
                              ]
         );

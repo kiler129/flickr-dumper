@@ -41,6 +41,18 @@ abstract class BaseDto
 
     final public function __isset(string $name): bool
     {
+        return isset($this->apiData[static::KNOWN_TO_API[$name] ?? $name]);
+    }
+
+    /**
+     * Unlike isset($obj->property) this will return true for properties that exist but are NULL
+     *
+     * @param string $name
+     *
+     * @return bool
+     */
+    final public function hasProperty(string $name): bool
+    {
         return \array_key_exists(static::KNOWN_TO_API[$name] ?? $name, $this->apiData);
     }
 

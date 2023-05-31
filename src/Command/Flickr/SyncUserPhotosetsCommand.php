@@ -69,7 +69,7 @@ class SyncUserPhotosetsCommand extends Command
                  'repair-files',
                  null,
                  InputOption::VALUE_NONE,
-                 'Do not trust the database<=>fs consistency (in case you mangled files manually)'
+                 'Do not trust the database<=>fs consistency (in case you mangled files manually or used --index-only)'
              )
              ->addOption(
                  'index-only',

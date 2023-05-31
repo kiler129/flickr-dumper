@@ -7,6 +7,7 @@ use App\Exception\Api\BadApiMethodCallException;
 use App\Exception\Api\TransportException;
 use App\Flickr\ClientEndpoint\FavoritesEndpoint;
 use App\Flickr\ClientEndpoint\PandaEndpoint;
+use App\Flickr\ClientEndpoint\PeopleEndpoint;
 use App\Flickr\ClientEndpoint\PhotosEndpoint;
 use App\Flickr\ClientEndpoint\PhotosetsEndpoint;
 use App\Flickr\ClientEndpoint\TestEndpoint;
@@ -24,6 +25,7 @@ final class FlickrApiClient implements ServiceSubscriberInterface
 {
     private FavoritesEndpoint $favorites;
     private PandaEndpoint $panda;
+    private PeopleEndpoint $people;
     private PhotosEndpoint $photos;
     private PhotosetsEndpoint $photosets;
     private TestEndpoint $test;
@@ -45,6 +47,11 @@ final class FlickrApiClient implements ServiceSubscriberInterface
     public function getPanda(): PandaEndpoint
     {
         return $this->panda ??= new PandaEndpoint($this);
+    }
+
+    public function getPeople(): PeopleEndpoint
+    {
+        return $this->people ??= new PeopleEndpoint($this);
     }
     
     public function getPhotos(): PhotosEndpoint

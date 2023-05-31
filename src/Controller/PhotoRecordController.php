@@ -12,6 +12,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 
 class PhotoRecordController extends AbstractController
@@ -24,7 +25,7 @@ class PhotoRecordController extends AbstractController
     public function show(Request $request, #[MapEntity(mapping: ['photoId' => 'id'])] Photo $photo): Response
     {
         if (!$request->query->has('notrack')) {
-            $photo->localRanking->triggerView();
+            $photo->localStats->triggerView();
             $this->photoRepo->save($photo, true);
         }
 
@@ -48,28 +49,41 @@ class PhotoRecordController extends AbstractController
         return new BinaryFileResponse($thumbPath, public: false, autoEtag: true, autoLastModified: true);
     }
 
-    #[Route('/photo/vote/{photoId}/up', methods: ['POST'], name: 'app.photo_vote_up')]
+    #[Route('/photo/modify/{photoId}/up', methods: ['POST'], name: 'app.photo_vote_up')]
     public function voteUp(#[MapEntity(mapping: ['photoId' => 'id'])] Photo $photo): Response
     {
         return $this->vote($photo, true);
     }
 
-    #[Route('/photo/vote/{photoId}/down', methods: ['POST'], name: 'app.photo_vote_down')]
+    #[Route('/photo/modify/{photoId}/down', methods: ['POST'], name: 'app.photo_vote_down')]
     public function voteDown(#[MapEntity(mapping: ['photoId' => 'id'])] Photo $photo): Response
     {
         return $this->vote($photo, false);
     }
 
+    #[Route('/photo/modify/{photoId}/softDelete', methods: ['POST'], name: 'app.photo_soft_delete')]
+    public function softDelete(#[MapEntity(mapping: ['photoId' => 'id'])] Photo $photo): Response
+    {
+        if ($photo->isDeleted()) {
+            throw new ConflictHttpException('Photo is already deleted');
+        }
+
+        $photo->setDeleted();
+        $this->photoRepo->save($photo, true);
+
+        return new Response(status: Response::HTTP_NO_CONTENT);
+    }
+
     private function vote(Photo $photo, bool $isGood): Response
     {
         if ($isGood) {
-            $photo->localRanking->upVote();
+            $photo->localStats->upVote();
         } else {
-            $photo->localRanking->downVote();
+            $photo->localStats->downVote();
         }
 
         $this->photoRepo->save($photo, true);
-        $votesNow = $photo->localRanking->voteRanking();
+        $votesNow = $photo->localStats->voteRanking();
 
         return new Response((string)$votesNow, headers: ['Content-Type' => 'text/plain']);
     }

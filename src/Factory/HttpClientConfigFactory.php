@@ -37,12 +37,12 @@ final class HttpClientConfigFactory
 
     public function getWithRandomBrowser(): HttpClientConfig
     {
-        return new HttpClientConfig($this->agentProvider->getRandomBrowser(), $this->getRandomProxy());
+        return new HttpClientConfig($this->agentProvider->getRandomBrowser(), $this->getRandomProxy(), true);
     }
 
     public function getWithRandomCliClient(): HttpClientConfig
     {
-        return new HttpClientConfig($this->agentProvider->getRandomCliClient(), $this->getRandomProxy());
+        return new HttpClientConfig($this->agentProvider->getRandomCliClient(), $this->getRandomProxy(), true);
     }
 
     private function getRandomProxy(): ?string

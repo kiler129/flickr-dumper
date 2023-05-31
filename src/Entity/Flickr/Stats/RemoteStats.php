@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Entity\Flickr;
+namespace App\Entity\Flickr\Stats;
 
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Embeddable]
-class PhotoStats
+class RemoteStats
 {
     #[ORM\Column(nullable: true)]
     public int|null $views = null;

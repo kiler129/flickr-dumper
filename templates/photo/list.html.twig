@@ -6,6 +6,7 @@
     {{ parent() }}
     <script>
         window.addEventListener("load", (event) => {
+            /** VOTE HANDLING **/
             function vote(bucketId, voteUrl) {
                 const target = document.getElementById(bucketId);
                 target.innerHTML = '🗳️ ... 🗳️';
@@ -27,23 +28,40 @@
                     })
                     .catch(error => alert(error))
             }
-
-            document.getElementById('sortOrder').addEventListener('change', (e) => {
-                const newSort = e.target.options[e.target.selectedIndex].dataset;
-                const url = new URL(window.location.href);
-                url.searchParams.set('orderBy', newSort.field);
-                url.searchParams.set('orderDir', newSort.dir);
-
-                window.location.href = url;
-                // sortOrder = document.getElementById('sortOrder');
-                // console.log(sortOrder.value);
-            });
-
             document.querySelectorAll('[data-vote-bucket-id]').forEach((el) => {
                 el.addEventListener('click', (e) => {
                     e.preventDefault();
                     vote(e.target.dataset.voteBucketId, e.target.dataset.action);
                 })
+            });
+
+            /** SORT HANDLING **/
+            document.getElementById('sortOrder').addEventListener('change', (e) => {
+                const newSort = e.target.options[e.target.selectedIndex].dataset;
+                const url = new URL(window.location.href);
+                url.searchParams.set('orderBy', newSort.field);
+                url.searchParams.set('orderDir', newSort.dir);
+                url.searchParams.delete('page');
+                window.location.href = url;
+            });
+
+            /** FILTER HANDLING **/
+            document.getElementById('filterBy').addEventListener('change', (e) => {
+                const newFilter = JSON.parse(e.target.options[e.target.selectedIndex].dataset.filter);
+                console.log(newFilter)
+
+                const url = new URL(window.location.href);
+                url.searchParams.forEach((value, name, searchParams) => {
+                    if (name.startsWith('filters[')) {
+                        url.searchParams.delete(name);
+                    }
+                })
+
+                Object.keys(newFilter).forEach(field => {
+                    url.searchParams.append('filters[' + field + ']', newFilter[field]);
+                });
+
+                window.location.href = url;
             });
         });
     </script>
@@ -67,33 +85,56 @@
             {% if not loop.last %}<option disabled>- - - -</option>{% endif %}
         {% endfor %}
     </select>
+    |
+    <label for="filterBy">Filter by:</label>
+    <select id="filterBy">
+        <option disabled selected>Pick to activate</option>
+        {% for filter in predefinedFilters %}
+            <option data-filter='{{ filter['filter']|json_encode()|raw }}'>{{ filter['name'] }}</option>
+        {% endfor %}
+    </select>
+    |
+    Current filter: <small><code>{{ currentFilters|json_encode }}</code></small>
+
+
     {{ block('pagination') }}
 
     <main class="grid">
         {% for photo in pager %}
+            {% set isSafe = (photo.safetyLevel is null or photo.safetyLevel.isSafe()) %}
             <div class="grid-box">
-                    <a href="{{ url('app.photo_file_bin', {'photoId': photo.id}) }}" target="_blank">
-                        <img src="{{ url('app.photo_thumb_bin', {'photoId': photo.id}) }}" alt="{{ photo.description }}" />
-                    </a>
-                    <div class="overlay">
-                        <div class="overlay-content">
-                            👀 {{ photo.remoteStats.views|default('?') }} |
-                            ⭐ {{ photo.remoteStats.favorites|default('?') }} |
-                            📷 {{ photo.dateTaken|default(photo.dateUploaded)|default(photo.dateUploaded)|default(photo.dateLastRetrieved)|date('Y-m-d') }} |
-
-                            <span id="vote{{ photo.id }}">
-                                <a href="#" data-vote-bucket-id="vote{{ photo.id }}" data-action="{{ url('app.photo_vote_up', {'photoId': photo.id}) }}">👍</a>
-                                {% if photo.localRanking.voteRanking > 0 %}
-                                    <span class="vote-positive">+{{ photo.localRanking.voteRanking }}</span>
-                                {% elseif photo.localRanking.voteRanking < 0 %}
-                                    <span class="vote-negative">{{ photo.localRanking.voteRanking }}</span>
-                                {% else %}
-                                   <span>0</span>
-                                {% endif %}
-                                <a href="#" data-vote-bucket-id="vote{{ photo.id }}" data-action="{{ url('app.photo_vote_down', {'photoId': photo.id}) }}">👎</a>
-                            </span>
-                        </div>
+                {% if not isSafe %}
+                    <div class="pre-overlay">
+                        <div class="overlay-content"><i><b>Safety:</b> {{ photo.safetyLevel.label() }}</i></div>
                     </div>
+                {% endif %}
+
+                <a href="{{ url('app.photo_file_bin', {'photoId': photo.id}) }}"
+                   target="_blank"
+                   {% if not isSafe %}class="masked"{% endif %}
+                >
+                    <img src="{{ url('app.photo_thumb_bin', {'photoId': photo.id}) }}" alt="{{ photo.description }}" />
+                </a>
+
+                <div class="overlay">
+                    <div class="overlay-content">
+                        👀 {{ photo.remoteStats.views|default('?') }} |
+                        ⭐ {{ photo.remoteStats.favorites|default('?') }} |
+                        📷 {{ photo.dateTaken|default(photo.dateUploaded)|default(photo.dateUploaded)|default(photo.dateLastRetrieved)|date('Y-m-d') }} |
+
+                        <span id="vote{{ photo.id }}">
+                            <a href="#" data-vote-bucket-id="vote{{ photo.id }}" data-action="{{ url('app.photo_vote_up', {'photoId': photo.id}) }}">👍</a>
+                            {% if photo.localStats.voteRanking > 0 %}
+                                <span class="vote-positive">+{{ photo.localStats.voteRanking }}</span>
+                            {% elseif photo.localStats.voteRanking < 0 %}
+                                <span class="vote-negative">{{ photo.localStats.voteRanking }}</span>
+                            {% else %}
+                               <span>0</span>
+                            {% endif %}
+                            <a href="#" data-vote-bucket-id="vote{{ photo.id }}" data-action="{{ url('app.photo_vote_down', {'photoId': photo.id}) }}">👎</a>
+                        </span>
+                    </div>
+                </div>
             </div>
         {% endfor %}
     </main>

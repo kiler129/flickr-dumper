@@ -62,7 +62,7 @@ services:
     # usecase has state for options, see cmd bellow
     App\UseCase\ImportFiles\ImportLocalFiles:
         shared: false
-    App\Command\Flickr\ImportFolderCommand:
+    App\Command\App\ImportFolderCommand:
         arguments:
             $importUC: !service_closure '@App\UseCase\ImportFiles\ImportLocalFiles'
 

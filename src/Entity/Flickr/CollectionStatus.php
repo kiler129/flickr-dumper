@@ -10,6 +10,7 @@ class CollectionStatus
 {
     /**
      * @var bool When collection is blacklisted no operations are performed on it
+     * @todo It should probably be renamed to something like localLocked
      */
     #[ORM\Column]
     public bool $blacklisted = false;

@@ -20,12 +20,16 @@ class PhotoDtoEntityTransformer
         $local->setApiData($apiPhoto->apiData)
               ->setDateLastRetrieved($lastRetrieved ?? new \DateTimeImmutable());
 
-        if (isset($apiPhoto->title)) {
+        if ($apiPhoto->hasProperty('title')) {
             $local->setTitle($apiPhoto->title);
         }
 
-        if (isset($apiPhoto->description)) {
+        if ($apiPhoto->hasProperty('description')) {
             $local->setDescription($apiPhoto->description);
+        }
+
+        if (isset($apiPhoto->safetyLevel)) {
+            $local->setSafetyLevel($apiPhoto->safetyLevel);
         }
 
         if ($local->getDateTaken() === null && isset($apiPhoto->dateTaken)) {

@@ -62,10 +62,12 @@ class ResolveOwner
     private function identifyPhotoUser(PhotoDto $photoDto): User
     {
         $photoHasNsid = isset($photoDto->ownerNsid); //e.g. "1234@N05"
-        $photoHasScreenName = isset($photoDto->ownerScreenName); //e.g. "spacex" (but CAN be null which is valid)
+        //e.g. "spacex" (but CAN be null but here we deliberately assume it has no screen name if it's null)
+        $photoHasScreenName = isset($photoDto->ownerScreenName);
         $photoHasUserName = isset($photoDto->ownerUsername); //e.g. "Space X Photos"
 
         //Simplest case -> maybe the user just exists in the database
+        //Keep in mind if it does NOT we try next to creat it from just the data in the DTO
         if ($photoHasNsid) {
             $user = $this->userRepo->find($photoDto->ownerNsid);
                 if ($user !== null) {
@@ -80,6 +82,12 @@ class ResolveOwner
             $this->userRepo->save($user, true);
 
             return $user;
+        }
+
+        //Even thou DTO didn't have enough data to create the user, if it has NSID or path alias (aka screen name)
+        // it can be easily retrieved from API
+        if ($photoHasNsid) {
+            return $this->lookupUserByNSID($photoDto->ownerNsid);
         }
 
         if ($photoHasScreenName) {
@@ -185,4 +193,36 @@ class ResolveOwner
 
         return $user;
     }
+
+    public function lookupUserByNSID(string $nsid): ?User
+    {
+        $user = $this->userRepo->find($nsid);
+        if ($user !== null) {
+            $this->log->debug(
+                'Found user NSID={nsid} in db',
+                ['nsid' => $user->getNsid()]
+            );
+            return $user;
+        }
+
+        $lookup = $this->apiClient->getPeople()->lookupUser($nsid);
+        if (!$lookup->isSuccessful()) {
+            $this->log->error('Failed to load user NSID={nsid} from API', ['nsid' => $nsid]);
+            dd($lookup);
+            return null;
+        }
+
+        $data = $lookup->getContent();
+        $this->log->debug(
+            'Found user NSID={nsid} via API - saving to DB',
+            ['nsid' => $data['nsid']]
+        );
+
+        $user = new User($data['nsid'], $data['username']['_content'], $data['path_alias']);
+        $this->userRepo->save($user, true);
+
+        return $user;
+    }
+
+
 }

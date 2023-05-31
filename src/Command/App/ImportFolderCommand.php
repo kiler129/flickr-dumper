@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Command\Flickr;
+namespace App\Command\App;
 
 use App\Command\IdentitySwitching;
 use App\UseCase\ImportFiles\ImportLocalFiles;

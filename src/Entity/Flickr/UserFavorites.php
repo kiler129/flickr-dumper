@@ -15,11 +15,13 @@ class UserFavorites implements PhotoCollection, Syncable, UserOwnedEntity
     use SyncableFragment;
 
     #[ORM\Id]
-    #[ORM\OneToOne(inversedBy: 'favorites', cascade: ['persist', 'remove'])]
+    //#[ORM\OneToOne(inversedBy: 'favorites', cascade: ['persist', 'remove'])]
+    //#[ORM\JoinColumn(nullable: false, referencedColumnName: 'nsid')]
+    #[ORM\OneToOne(targetEntity: User::class, inversedBy: 'favorites')]
     #[ORM\JoinColumn(nullable: false, referencedColumnName: 'nsid')]
     private User $owner;
 
-    #[ORM\ManyToMany(targetEntity: Photo::class, fetch: 'EXTRA_LAZY')]
+    #[ORM\ManyToMany(targetEntity: Photo::class, fetch: 'EXTRA_LAZY', inversedBy: 'userFavorites')]
     #[ORM\JoinColumn(nullable: false, referencedColumnName: 'owner_id', name: 'owner_id')]
     private Collection $photos;
 
@@ -50,6 +52,6 @@ class UserFavorites implements PhotoCollection, Syncable, UserOwnedEntity
 
     public static function ownerOwnsPhotos(): bool
     {
-        return true;
+        return false;
     }
 }

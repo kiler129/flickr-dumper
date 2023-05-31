@@ -1,11 +1,84 @@
 {% extends "base.html.twig" %}
 
-{# @var list \App\Entity\Flickr\User[] #}
+{% block pagination %}
+    {{ pagerfanta(pager) }}
+{% endblock %}
 
 {% block content %}
-    <ul>
-        {% for user in list %}
-            <li>{{ user.userName }}{% if user.screenName is not empty %} <i>(@{{ user.screenName }})</i>{% endif %}</li>
+    {{ block('pagination') }}
+
+    <table>
+        <thead>
+            <tr>
+                <th>NSID</th>
+                <th>Name</th>
+                <th>Identifier</th>
+                <th>Own Photos</th>
+                <th>Albums/photosets</th>
+                <th>Favorites</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for result in pager %}
+            {# @var user \App\Entity\Flickr\User #}
+            {% set user = result['user'] %}
+            {% set photosCount = result['photo_count'] %}
+            {% set photosetCount = result['photoset_count'] %}
+            {% set favesCount = result['faves_count'] %}
+            {% set favesWithoutVotesCount = result['faves_photos_without_votes'] %}
+
+            <tr>
+                <td>{{ user.nsid }}</td>
+                <td>{{ user.userName }}</td>
+                <td>
+                    {% if user.screenName is not null %}
+                        @{{ user.screenName }}
+                    {% else %}
+                        <span class="placeholder">N/A</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if photosCount == 0 %}
+                        <span class="placeholder">None</span>
+                    {% else %}
+                        <a href="{{ url('app.user_resources_photos', {'userId': user.nsid}) }}">{{ photosCount }} photos</a>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if photosetCount == 0 %}
+                        <span class="placeholder">None</span>
+                    {% else %}
+                        <a href="{{ url('app.user_resources_albums', {'userId': user.nsid}) }}">{{ photosetCount }} albums</a>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if user.favorites == null %}
+                        <span class="placeholder">Not initialized</span>
+                    {% else %}
+                        {% if favesCount == 0 %}
+                            <span class="placeholder">None</span>
+                        {% else %}
+                            <a href="{{ url('app.user_resources_favorites', {'userId': user.nsid}) }}">{{ favesCount }} faves</a>
+
+                            {% if favesWithoutVotesCount > 0 %}<small>({{ favesWithoutVotesCount }} w/o vote)</small>{% endif %}
+                        {% endif %}
+
+                        {% if user.favorites.writeLocked %}
+                            <span title="Write locked">🔏</span>
+                        {% endif %}
+                        {% if user.favorites.syncCompleted %}
+                            <span title="Completed sync at least once">✅</span>
+                        {% else %}
+                            <span title="Never completed a full sync">⚠️</span>
+                        {% endif %}
+
+
+                    {% endif %}
+                </td>
+            </tr>
         {% endfor %}
-    </ul>
+        </tbody>
+    </table>
+
+    {{ block('pagination') }}
 {% endblock %}

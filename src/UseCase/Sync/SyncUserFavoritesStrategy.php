@@ -16,6 +16,8 @@ use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\PhotosetRepository;
 use App\Repository\Flickr\UserFavoritesRepository;
 use App\Repository\Flickr\UserRepository;
+use App\Struct\PhotoExtraFields;
+use App\Transformer\PhotoDtoEntityTransformer;
 use App\UseCase\FetchPhotoToDisk;
 use App\UseCase\ResolveOwner;
 use Doctrine\ORM\EntityManagerInterface;
@@ -28,18 +30,12 @@ use Symfony\Contracts\Service\ServiceSubscriberInterface;
  */
 final class SyncUserFavoritesStrategy extends SyncCollectionStrategy implements ServiceSubscriberInterface
 {
+
     public function __construct(
         ContainerInterface $locator,
-        FlickrApiClient $api,
-        LoggerInterface $log,
-        UserRepository $userRepo,
-        PhotoRepository $photoRepo,
-        ResolveOwner $resolveOwner,
-        UrlParser $urlParser,
-        EntityManagerInterface $om,
         private UserFavoritesRepository $repo
     ) {
-        parent::__construct($locator, $api, $log, $userRepo, $photoRepo, $resolveOwner, $urlParser, $om);
+        parent::__construct($locator);
     }
 
     /**
@@ -71,10 +67,12 @@ final class SyncUserFavoritesStrategy extends SyncCollectionStrategy implements 
         $photos = $this->getFavoritePhotos($identity);
         $collection->setDateLastRetrieved(new \DateTimeImmutable());
         if (!$this->syncCollectionPhotos($collection, $photos, $sink)) {
-            $this->log->debug(
+            $this->log->error(
                 '{id} sync failed: see previous messages for details',
                 ['id' => $collection->getUserReadableId()]
             );
+
+            $collection->setDateSyncCompleted(null);
             return false;
         }
 
@@ -89,12 +87,15 @@ final class SyncUserFavoritesStrategy extends SyncCollectionStrategy implements 
      */
     private function getFavoritePhotos(UserFavesIdentity $favesIdentity): iterable
     {
+        $fields = static::PHOTO_EXTRAS;
+        $fields[] = PhotoExtraFields::MAGIC_INTERSTITIAL; //in faves this allows for restricted photos w/o signature
+
         return $this->api->getFavorites()
                          ->getListIterable(
                              $favesIdentity->ownerNSID,
                              null,
                              null,
-                             self::PHOTO_EXTRAS,
+                             $fields,
                              PhotosetsEndpoint::MAX_PER_PAGE,
                              pageFinishCallback: $this->getIdentitySwitchCallback()
                          );

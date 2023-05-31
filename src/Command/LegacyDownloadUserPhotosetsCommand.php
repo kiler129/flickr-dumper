@@ -25,7 +25,10 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
     aliases: ['flickr:download-user-albums'],
     description: 'Downloads all user photosets (aka. albums)'
 )]
-class DownloadUserPhotosetsCommand extends BaseDownloadCommand
+/**
+ * @deprecated
+ */
+class LegacyDownloadUserPhotosetsCommand extends BaseDownloadCommand
 {
     private Command $dlPhotosetCmd;
 

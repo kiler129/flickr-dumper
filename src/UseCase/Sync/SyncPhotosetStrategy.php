@@ -28,27 +28,9 @@ final class SyncPhotosetStrategy extends SyncCollectionStrategy implements Servi
 {
     public function __construct(
         ContainerInterface $locator,
-        FlickrApiClient $api,
-        LoggerInterface $log,
-        UserRepository $userRepo,
-        PhotoRepository $photoRepo,
-        PhotoDtoEntityTransformer $photoTransformer,
-        ResolveOwner $resolveOwner,
-        UrlParser $urlParser,
-        EntityManagerInterface $om,
         private PhotosetRepository $repo
     ) {
-        parent::__construct(
-            $locator,
-            $api,
-            $log,
-            $userRepo,
-            $photoRepo,
-            $photoTransformer,
-            $resolveOwner,
-            $urlParser,
-            $om
-        );
+        parent::__construct($locator);
     }
 
     /**
@@ -102,10 +84,12 @@ final class SyncPhotosetStrategy extends SyncCollectionStrategy implements Servi
         }
 
         if (!$this->syncCollectionPhotos($collection, $this->getAlbumPhotos($identity), $sink)) {
-            $this->log->debug(
+            $this->log->error(
                 '{id} sync failed: see previous messages for details',
                 ['id' => $collection->getUserReadableId()]
             );
+
+            $collection->setDateSyncCompleted(null);
             return false;
         }
 
@@ -132,7 +116,7 @@ final class SyncPhotosetStrategy extends SyncCollectionStrategy implements Servi
                              $albumIdentity->ownerNSID,
                              $albumIdentity->setId,
                              PhotosetsEndpoint::MAX_PER_PAGE,
-                             self::PHOTO_EXTRAS,
+                             static::PHOTO_EXTRAS,
                          );
     }
 

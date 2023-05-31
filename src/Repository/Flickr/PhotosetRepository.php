@@ -29,41 +29,54 @@ class PhotosetRepository extends PhotoCollectionRepository
         parent::__construct($registry, Photoset::class);
     }
 
-    public function findAllDisplayable(): iterable
+    public function createForAllDisplayable(): QueryBuilder
     {
-        $qb = $this->createQueryBuilder('photoset');
+        $qb = $this->createQueryBuilder('_ps');
         $qb
-            //->join('photoset.owner', 'owner')
+            ->select('_ps as photoset')
+            ->addSelect('_u hidden')
+            ->addSelect('(SELECT COUNT(1) FROM ' . Photo::class . ' _p ' .
+                        ' JOIN _p.photosets _pps' .
+                        ' WHERE _pps.id = _ps.id' .
+                        ') as photo_count')
+            ->addSelect('(SELECT COUNT(1) FROM ' . Photo::class . ' _pv ' .
+                        ' JOIN _pv.photosets _ppps' .
+                        ' WHERE _ppps.id = _ps.id AND ' .
+                        '       _pv.status.deleted = false AND ' .
+                        '       _pv.localStats.upVotes = 0 AND ' .
+                        '       _pv.localStats.downVotes = 0 ' .
+                        ') as photos_without_votes')
+            ->join('_ps.owner', '_u', Expr\Join::WITH, '_ps.owner = _u.nsid')
             ->where(
-                $qb->expr()->andX(
-                    $qb->expr()->eq('photoset.status.blacklisted', 'false'),
-                    $qb->expr()->eq('photoset.status.deleted', 'false'),
-                )
-            );
-        $q = $qb->getQuery();
+                    $qb->expr()->eq('_ps.status.deleted', 'false'),
+            )
+            ->addOrderBy('_ps.dateCreated', 'DESC')
+            ->addOrderBy('_ps.dateLastUpdated', 'DESC')
+            ->addOrderBy('_ps.dateLastRetrieved', 'DESC')
+        ;
 
-        return $q->getResult();
+        return $qb;
     }
+
+    public function createForAllDisplayableForUser(string $ownerId): QueryBuilder
+    {
+        $qb = $this->createForAllDisplayable();
+        $qb->andWhere('_ps.owner = :ownerId')
+            ->setParameter(':ownerId', $ownerId);
+
+        return $qb;
+    }
+
 
     public function createForAllPhotosInAlbum(int $photosetId, array $photoFilters, string $sortField, string $sortDir): QueryBuilder
     {
         $qb = $this->getEntityManager()->createQueryBuilder();
-
-        //$qb
-        //    ->select('photo')
-        //    ->from(Photo::class, 'photo')
-        //    ->join(Photoset::class, 'photoset', Expr\Join::WITH, 'photo MEMBER photoset.photos')
-        //    ->where('photoset.id = :photosetId')
-        //    ->setParameter('photosetId', $photosetId)
-        //;
-        //
         $qb
             ->select('photo')
             ->from(Photo::class, 'photo')
             ->join('photo.photosets', 'photoset', Expr\Join::WITH, 'photoset.id = :photosetId')
             ->setParameter('photosetId', $photosetId)
         ;
-
 
         return $this->createFilteredPhotos(
             $this->getEntityManager()->getClassMetadata(Photo::class),

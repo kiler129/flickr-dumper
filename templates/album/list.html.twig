@@ -1,11 +1,75 @@
 {% extends "base.html.twig" %}
 
-{# @var list \App\Entity\Flickr\Photoset[] #}
+{% block pagination %}
+    {{ pagerfanta(pager) }}
+{% endblock %}
 
 {% block content %}
-    <ul>
-        {% for album in list %}
-            <li><a href="{{ url('app.photos_in_album', {'albumId': album.id}) }}">{{ album.title }}</a> <i>by {{ album.owner.userName }}</i> ({{ album.photos.count() }} photos{% if album.writeLocked %} 🚧{% endif %})</li>
+    {{ block('pagination') }}
+
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Owner</th>
+            <th>Title</th>
+            <th>Last Updated</th>
+            <th>Remote Photos</th>
+            <th>Local Photos</th>
+            <th>Status</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for result in pager %}
+            {# @var photoset \App\Entity\Flickr\Photoset #}
+            {% set photoset = result['photoset'] %}
+            {% set owner = photoset.owner %}
+            {% set photosCount = result['photo_count'] %}
+            {% set photosWithoutVotesCount = result['photos_without_votes'] %}
+
+            <tr>
+                <td>{{ photoset.id }}</td>
+                <td><a href="{{ url('app.user_resources', {'userId': owner.nsid}) }}">{{ owner.userName }}</a></td>
+                <td>{{ photoset.title }}</td>
+                <td>
+                    {% if photoset.dateLastUpdated is not null %}
+                        {{ photoset.dateLastUpdated|date('Y-m-d') }}
+                    {% else %}
+                        <span class="placeholder">Never</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if photoset.remoteStats.photos is not null %}
+                        {{ photoset.remoteStats.photos }}
+                    {% else %}
+                        <span class="placeholder">Unknown</span>
+                    {% endif %}
+
+                </td>
+                <td>
+                        {% if photosCount == 0 %}
+                            <span class="placeholder">None</span>
+                        {% else %}
+                            <a href="{{ url('app.photos_in_album', {'userId': owner.nsid, 'albumId': photoset.id}) }}">{{ photosCount }} photos</a>
+
+                            {% if photosWithoutVotesCount > 0 %}<small>({{ photosWithoutVotesCount }} w/o vote)</small>{% endif %}
+                        {% endif %}
+                </td>
+                <td>
+                    {% if photoset.writeLocked %}
+                        <span title="Write locked">🔏</span>
+                    {% endif %}
+
+                    {% if photoset.syncCompleted %}
+                        <span title="Completed sync at least once">✅</span>
+                    {% else %}
+                        <span title="Never completed a full sync">⚠️</span>
+                    {% endif %}
+                </td>
+            </tr>
         {% endfor %}
-    </ul>
+        </tbody>
+    </table>
+
+    {{ block('pagination') }}
 {% endblock %}

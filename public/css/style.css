@@ -107,7 +107,62 @@ ol li {
 }
 
 
+/*.masked {*/
+/*    background: repeating-linear-gradient(*/
+/*            45deg,*/
+/*            rgba(0, 0, 0, 0.50),*/
+/*            rgba(0, 0, 0, 0.50) 10px,*/
+/*            rgba(0, 0, 0, 0.95) 10px,*/
+/*            rgba(0, 0, 0, 0.95) 20px*/
+/*    );*/
+/*    !*background-size: 50px 50px;*!*/
+/*    display: block;*/
+/*}*/
+/*.masked > * {*/
+/*    opacity: 0.04;*/
+/*}*/
+/*.masked:hover > * {*/
+/*    transition: opacity 0.4s ease;*/
 
+/*    opacity: unset;*/
+/*    background: inherit;*/
+/*}*/
+
+table {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    border-collapse: collapse;
+    background-color: #333;
+    color: #fff;
+    border: 1px solid #222;
+}
+
+th, td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #555;
+    white-space: nowrap;
+}
+
+th {
+    background-color: #222;
+    color: #fff;
+}
+
+tr:nth-child(even) {
+    background-color: #444;
+}
+
+tbody tr:hover {
+    background-color: #555;
+    outline: 1px solid rgba(255, 255, 255, 0.41);
+}
+
+.placeholder {
+    color: rgb(120, 120, 120);
+    font-style: italic;
+}
 
 
 .grid {
@@ -121,6 +176,7 @@ ol li {
 
 .grid .grid-box {
     position: relative;
+    outline: 1px darkgray;
 }
 
 .grid .grid-box img {
@@ -129,7 +185,8 @@ ol li {
     box-shadow: 0 2px 10px rgba(200, 200, 200, 0.3);
 }
 
-.grid .grid-box .overlay {
+.grid .grid-box .overlay,
+.grid .grid-box .pre-overlay {
     position: absolute;
     bottom: 0;
     left: 0;
@@ -143,9 +200,24 @@ ol li {
   box-sizing: border-box;
 }
 
+.grid .grid-box .pre-overlay {
+    top: 0;
+    left: 0;
+    bottom: unset;
+    background-color: rgba(0, 0, 0, 0.9);
+    opacity: 1;
+    height: auto;
+}
+
+
 .grid .grid-box:hover .overlay {
   opacity: 1;
   height: auto;
+}
+
+.grid .grid-box:hover .pre-overlay {
+  opacity: 0;
+  height: 0;
 }
 
 .grid .grid-box .overlay-content {

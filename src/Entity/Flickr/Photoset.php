@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use App\Entity\Flickr\Stats\RemoteCollectionStats;
+use App\Entity\Flickr\Stats\RemoteStats;
 use App\Exception\LogicException;
 use App\Repository\Flickr\PhotosetRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -33,6 +35,9 @@ class Photoset implements PhotoCollection, UserOwnedEntity, Syncable
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $dateLastUpdated = null;
 
+    #[ORM\Embedded]
+    public RemoteCollectionStats $remoteStats;
+
     #[ORM\ManyToOne(inversedBy: 'photosets')]
     #[ORM\JoinColumn(nullable: false, referencedColumnName: 'nsid')]
     private User $owner;
@@ -46,6 +51,8 @@ class Photoset implements PhotoCollection, UserOwnedEntity, Syncable
     public function __construct(int $id, User $owner, ?\DateTimeInterface $retrieved = null)
     {
         $this->id = $id;
+        $this->remoteStats = new RemoteCollectionStats();
+
         $this->setOwner($owner);
         $this->setDateLastRetrieved($retrieved ?? new \DateTimeImmutable());
         $this->photos = new ArrayCollection();

@@ -32,7 +32,7 @@ use Psr\Log\LoggerInterface;
  */
 abstract class SyncCollectionStrategy
 {
-    protected const PHOTO_EXTRAS = [
+    final protected const PHOTO_EXTRAS = [
         PhotoExtraFields::DESCRIPTION,
         PhotoExtraFields::DATE_UPLOAD,
         PhotoExtraFields::DATE_TAKEN,
@@ -44,6 +44,7 @@ abstract class SyncCollectionStrategy
         //These may or may not be available (undocumented features)
         PhotoExtraFields::FAVES_COUNT,
         PhotoExtraFields::COMMENTS_COUNT,
+        PhotoExtraFields::SAFETY_LEVEL,
 
         //We're only requesting sensibly-sized pictures, not thumbnails
         PhotoExtraFields::URL_MEDIUM_640,
@@ -90,17 +91,25 @@ abstract class SyncCollectionStrategy
      */
     public bool $switchIdentities = false;
 
-    public function __construct(
-        private ContainerInterface $locator,
-        protected FlickrApiClient $api,
-        protected LoggerInterface $log,
-        private UserRepository $userRepo,
-        private PhotoRepository $photoRepo,
-        private PhotoDtoEntityTransformer $photoTransformer,
-        private ResolveOwner $resolveOwner,
-        private UrlParser $urlParser,
-        private EntityManagerInterface $om,
-    ) {
+    protected FlickrApiClient $api;
+    protected LoggerInterface $log;
+    private UserRepository $userRepo;
+    private PhotoRepository $photoRepo;
+    private PhotoDtoEntityTransformer $photoTransformer;
+    private ResolveOwner $resolveOwner;
+    private UrlParser $urlParser;
+    private EntityManagerInterface $om;
+
+    public function __construct(private ContainerInterface $locator)
+    {
+        $this->api = $locator->get(FlickrApiClient::class);
+        $this->log = $locator->get(LoggerInterface::class);
+        $this->userRepo = $locator->get(UserRepository::class);
+        $this->photoRepo = $locator->get(PhotoRepository::class);
+        $this->photoTransformer = $locator->get(PhotoDtoEntityTransformer::class);
+        $this->resolveOwner = $locator->get(ResolveOwner::class);
+        $this->urlParser = $locator->get(UrlParser::class);
+        $this->om = $locator->get(EntityManagerInterface::class);
     }
 
     abstract static protected function supportsIdentity(MediaCollectionIdentity $identity): bool;
@@ -308,6 +317,7 @@ abstract class SyncCollectionStrategy
             );
             $isNewLocalPhoto = true;
         } elseif (!$this->verifyPhotoState($localPhoto)) { //the state of new photos is known so only check old
+            //@todo this probably should do EM->refresh() on every fetched photo to not remove votes
             return true; //Skipped by state failure of to-be updated photo but it's exepcted (so non-error condition)
         }
 
@@ -466,6 +476,17 @@ abstract class SyncCollectionStrategy
     public static function getSubscribedServices(): array
     {
         return [
+            //All services needed by this parent class; included with locator to avoid a huge mess in child classes
+            FlickrApiClient::class,
+            LoggerInterface::class,
+            UserRepository::class,
+            PhotoRepository::class,
+            PhotoDtoEntityTransformer::class,
+            ResolveOwner::class,
+            UrlParser::class,
+            EntityManagerInterface::class,
+
+            //These are only used sometimes
             ApiClientConfigFactory::class, //used only when randomization desired
         ];
     }

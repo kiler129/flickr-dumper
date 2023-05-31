@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use App\Entity\Flickr\Stats\LocalItemStats;
+use App\Entity\Flickr\Stats\RemoteStats;
 use App\Exception\LogicException;
+use App\Flickr\Enum\SafetyLevel;
 use App\Repository\Flickr\PhotoRepository;
 use App\Struct\PhotoSize;
 use Doctrine\Common\Collections\Collection;
@@ -24,6 +27,9 @@ class Photo
     private ?string $description = null;
 
     #[ORM\Column(nullable: true)]
+    private ?SafetyLevel $safetyLevel = null;
+
+    #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $dateTaken = null;
 
     #[ORM\Column(nullable: true)]
@@ -33,10 +39,10 @@ class Photo
     private ?\DateTimeImmutable $dateLastUpdated = null;
 
     #[ORM\Embedded]
-    public PhotoStats $remoteStats;
+    public RemoteStats $remoteStats;
 
     #[ORM\Embedded]
-    public PhotoRanking $localRanking;
+    public LocalItemStats $localStats;
 
     #[ORM\Column]
     private \DateTimeImmutable $dateLastRetrieved;
@@ -65,11 +71,14 @@ class Photo
     #[ORM\ManyToMany(targetEntity: Photoset::class, mappedBy: 'photos')]
     private Collection $photosets;
 
+    #[ORM\ManyToMany(targetEntity: UserFavorites::class, mappedBy: 'photos')]
+    private Collection $userFavorites;
+
     public function __construct(int $id, User $owner, PhotoSize $fileVersion, string $cdnUrl, ?\DateTimeInterface $retrieved = null)
     {
         $this->id = $id;
-        $this->remoteStats = new PhotoStats();
-        $this->localRanking = new PhotoRanking();
+        $this->remoteStats = new RemoteStats();
+        $this->localStats = new LocalItemStats();
         $this->status = new PhotoStatus();
 
         $this->setOwner($owner);
@@ -103,6 +112,18 @@ class Photo
     public function setDescription(?string $description): self
     {
         $this->description = $description;
+
+        return $this;
+    }
+
+    public function getSafetyLevel(): ?SafetyLevel
+    {
+        return $this->safetyLevel;
+    }
+
+    public function setSafetyLevel(?SafetyLevel $safetyLevel): static
+    {
+        $this->safetyLevel = $safetyLevel;
 
         return $this;
     }
@@ -207,6 +228,7 @@ class Photo
     public function setLocalPath(?string $localPath): self
     {
         $this->localPath = $localPath;
+        $this->status->filesystemInSync = false;
 
         return $this;
     }
@@ -243,6 +265,13 @@ class Photo
     public function isDeleted(): bool
     {
         return $this->status->deleted;
+    }
+
+    public function setDeleted(bool $isDeleted = true): self
+    {
+        $this->status->deleted = $isDeleted;
+
+        return $this;
     }
 
     public function lockForWrite(): void

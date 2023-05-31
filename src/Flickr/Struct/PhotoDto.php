@@ -5,6 +5,7 @@ namespace App\Flickr\Struct;
 
 use App\Exception\DomainException;
 use App\Exception\InvalidArgumentException;
+use App\Flickr\Enum\SafetyLevel;
 use App\Struct\PhotoExtraFields;
 use App\Struct\PhotoSize;
 
@@ -22,8 +23,10 @@ use App\Struct\PhotoSize;
  * @property-read bool $public
  * @property-read bool $friend
  * @property-read bool $family
+ * @property-read bool $safe
  * @property-read string $description
  * @property-read array $licenses
+ * @property-read SafetyLevel $safetyLevel
  * @property-read \DateTimeInterface $dateUploaded
  * @property-read \DateTimeInterface $dateUpdated
  * @property-read \DateTimeInterface $dateTaken
@@ -31,8 +34,8 @@ use App\Struct\PhotoSize;
  * @property-read string $ownerUsername Username (e.g. "Space X Photos"); available: photosets*,
  * @property-read string $ownerNsid NSID of the owner (e.g. "1234@N01"); available: faves,
  * @property-read string|null $ownerScreenName Nick of the owner (e.g. "spacex"); available: photosets*, faves*
- * @property-read string $iconServer
- * @property-read int $iconFarm
+ * @property-read string $iconServer Part of buddyicons (https://www.flickr.com/services/api/misc.buddyicons.html)
+ * @property-read int $iconFarm Part of buddyicons (https://www.flickr.com/services/api/misc.buddyicons.html)
  * @property-read int $views
  * @property-read int $favesCount Number of favorites; undocumented feature; available: photosets*
  * @property-read int $commentsCount Number of comments; undocumented feature; available: photosets*
@@ -55,6 +58,7 @@ final class PhotoDto extends BaseDto
         'ispublic' => 'bool',
         'isfriend' => 'bool',
         'isfamily' => 'bool',
+        'safe' => 'bool',
         'datetakenunknown' => 'bool',
         'ownername' => 'string',
         'owner' => 'string',
@@ -77,6 +81,7 @@ final class PhotoDto extends BaseDto
         'friend' => 'isfriend',
         'family' => 'isfamily',
         'licenses' => 'license',
+        'safetyLevel' => 'safety_level',
         'dateUploaded' => 'dateupload',
         'dateUpdated' => 'lastupdate',
         'dateTaken' => 'datetaken',
@@ -169,6 +174,7 @@ final class PhotoDto extends BaseDto
             'title' => $value['_content'] ?? $value,
             PhotoExtraFields::DESCRIPTION->value => $value['_content'] ?? $value,
             PhotoExtraFields::LICENSE->value => \explode(',', $value),
+            PhotoExtraFields::SAFETY_LEVEL->value => SafetyLevel::from((int)$value),
             'dateupload', 'lastupdate', 'datetaken' => $this->castDateTime($value),
             'tags' => is_array($value['tag'] ?? null)
                 ? \array_column($value['tag'], '_content')

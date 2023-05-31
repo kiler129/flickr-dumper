@@ -28,14 +28,14 @@ class User
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $screenName;
 
-    #[ORM\OneToMany(mappedBy: 'owner', targetEntity: Photo::class)]
+    #[ORM\OneToMany(mappedBy: 'owner', targetEntity: Photo::class, fetch: 'EXTRA_LAZY')]
     private Collection $photos;
 
-    #[ORM\OneToMany(mappedBy: 'owner', targetEntity: Photoset::class)]
+    #[ORM\OneToMany(mappedBy: 'owner', targetEntity: Photoset::class, fetch: 'EXTRA_LAZY')]
     private Collection $photosets;
 
-    #[ORM\OneToOne(mappedBy: 'owner', cascade: ['persist', 'remove'], orphanRemoval: true)]
-    #[ORM\JoinColumn(referencedColumnName: 'owner_id')]
+    #[ORM\OneToOne(targetEntity: UserFavorites::class, mappedBy: 'owner', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    //#[ORM\JoinColumn(referencedColumnName: 'owner_id')]
     private ?UserFavorites $favorites = null;
 
     public function __construct(string $nsid, string $userName, ?string $screenName = null)

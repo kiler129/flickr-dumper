@@ -12,6 +12,7 @@ class PhotoStatus
 {
     /**
      * @var bool When photo is blacklisted/blocked/locked no operations are performed on it
+     * @todo It should probably be renamed to something like localLocked
      */
     #[ORM\Column]
     public bool $blacklisted = false;
@@ -19,7 +20,11 @@ class PhotoStatus
     /**
      * @var bool Photo can be "soft" deleted regardless of status of its physical files or even file records. Keep
      *           in mind this status is separate from $blacklisted - a photo can be blacklisted (and all sync ops
-     *           will ignore it) but not deleted (it's browsable)
+     *           will ignore it) but not deleted (it's browsable). Deleted flag should be used for photos that should
+     *           functionally be considered "not existing", i.e. these only exists so during sync we know to not
+     *           recreate something that was deleted locally.
+     *           The system makes no guarantees for files marked as deleted to be recoverable! Its metadata may've been
+     *           cleared to save space etc.
      */
     #[ORM\Column]
     public bool $deleted = false;

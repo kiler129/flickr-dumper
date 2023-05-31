@@ -13,6 +13,7 @@ use App\Repository\Flickr\PhotoRepository;
 use App\Struct\DownloadJobStatus;
 use App\Struct\HttpClientConfig;
 use Psr\Log\LoggerInterface;
+use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
@@ -56,9 +57,9 @@ class FetchPhotoToDisk
     private \SplObjectStorage $jobs;
 
     /**
-     * @var array<int, DownloadJobStatus>
+     * @var \SplObjectStorage<ResponseInterface, DownloadJobStatus>
      */
-    private array $statuses = [];
+    private \SplObjectStorage $statuses;
 
     public function __construct(
         private LoggerInterface $log,
@@ -69,7 +70,9 @@ class FetchPhotoToDisk
         int $batchSize = 1
     ) {
         $this->setBatch($batchSize);
+
         $this->jobs = new \SplObjectStorage();
+        $this->statuses = new \SplObjectStorage();
     }
 
     /**
@@ -115,58 +118,78 @@ class FetchPhotoToDisk
 
     private function fetchAwaiting(): bool
     {
-        $this->log->debug('Fetching {count} awaiting streams', ['count' => \count($this->jobs)]);
+        $jobsCount = \count($this->jobs);
+        if ($jobsCount === 0) {
+            $this->log->debug('No more jobs to fetch');
 
+            return true;
+        }
+
+        $this->log->debug('Fetching {count} awaiting streams', ['count' => $jobsCount]);
         $overallStatus = true;
-        $this->jobs->rewind();
-        foreach ($this->httpClient->stream($this->jobs) as $response => $chunk) {
-            $fitId = null;
-            $currentFileStatus = null;
-            /** @var FileInTransit $file */
-            $file = $this->jobs[$response];
+        try {
+            //stream() will throw with HTTP errors (e.g. 4xx and 5xx)
+            foreach ($this->httpClient->stream($this->jobs) as $response => $chunk) {
+                try {
+                    $this->jobs[$response]->write($chunk->getContent());
+                    if ($chunk->isLast()) { //not doing anything for others; it will be handled by on_progress callback
+                        $this->markJobAsFinished($response);
+                    }
 
-            try {
-                $file->write($chunk->getContent());
-                if (!$chunk->isLast()) { //not doing anything for others => it will be handled by on_progress callback
-                    continue;
-                }
-
-                $fitId = \spl_object_id($file);
-
-                //The same block is repeated in "catch" to fail the whole chain
-                $this->jobs->detach($response); //make sure job is cleared in case something throws
-                $this->storage->finish($file); //call this before reporting status in case it throws
-                if (isset($this->statuses[$fitId])) {
-                    ($this->statuses[$fitId] ?? null)?->finish();
-                    unset($this->statuses[$fitId]);
-                }
-
-                $currentFileStatus = true;
-
-            } catch (TransportExceptionInterface | IOException $e) {
-                $error = \sprintf('%s: %s', $e::class, $e->getMessage());
-                $this->log->error(
-                    'Download of {url} failed due to {error}',
-                    ['url' => $response->getInfo('url'), 'error' => $error]
-                );
-
-                $this->jobs->detach($response);
-                $this->storage->abort($file);
-                if (isset($this->statuses[$fitId])) {
-                    $this->statuses[$fitId]?->fail($error);
-                }
-
-                $currentFileStatus = false;
-
-            } finally {
-                if ($currentFileStatus !== null) {
-                    $overallStatus = $currentFileStatus && $overallStatus;
-                    $this->finalizePhoto($currentFileStatus, $response, $file);
+                } catch (TransportExceptionInterface|IOException $e) {
+                    $this->markJobAsFailed($response, \sprintf('%s: %s', $e::class, $e->getMessage()));
+                    $overallStatus = false;
                 }
             }
+        } catch (HttpExceptionInterface | TransportExceptionInterface $e) {
+            $this->markJobAsFailed(
+                $response,
+                \sprintf(
+                    '%s error: %s',
+                    $e instanceof HttpExceptionInterface ? 'HTTP' : 'network',
+                    $e->getMessage()
+                )
+            );
+
+            $overallStatus = $this->fetchAwaiting() || $overallStatus;
         }
 
         return $overallStatus;
+    }
+
+    private function markJobAsFinished(ResponseInterface $httpJob)
+    {
+        /** @var FileInTransit $file */
+        $file = $this->jobs[$httpJob];
+
+        $this->jobs->detach($httpJob); //make sure job is cleared in case something throws
+        $this->storage->finish($file); //call this before reporting status in case it throws
+        if ($this->statuses->contains($httpJob)) {
+            $this->statuses[$httpJob]->finish();
+            $this->statuses->detach($httpJob);
+        }
+
+        $this->finalizePhoto(true, $httpJob, $file);
+    }
+
+    private function markJobAsFailed(ResponseInterface $httpJob, string $error): void
+    {
+        /** @var FileInTransit $file */
+        $file = $this->jobs[$httpJob];
+
+        $this->log->error(
+            'Download of {url} failed due to {error}',
+            ['url' => $httpJob->getInfo('url'), 'error' => $error]
+        );
+
+        $this->jobs->detach($httpJob);
+        $this->storage->abort($file);
+        if ($this->statuses->contains($httpJob)) {
+            $this->statuses[$httpJob]->fail($error);
+            $this->statuses->detach($httpJob);
+        }
+
+        $this->finalizePhoto(false, $httpJob, $file);
     }
 
     public function __invoke(Photo $photo): bool
@@ -261,10 +284,10 @@ class FetchPhotoToDisk
 
         $httpOpts = $this->httpConfig->asOptions();
         if (isset($this->progressCallback)) {
-            $this->statuses[$statusKey] = new DownloadJobStatus($statusKey, $this->progressCallback);
+            $status = new DownloadJobStatus($statusKey, $this->progressCallback);
+            $this->statuses->attach($status);
 
-            $httpOpts['on_progress'] = function (int $dlNow, int $dlSize, array $info) use ($statusKey): void {
-                $status = $this->statuses[$statusKey];
+            $httpOpts['on_progress'] = function (int $dlNow, int $dlSize, array $info) use ($status): void {
                 $status->bytesDownloaded = $dlNow;
                 $status->bytesTotal = $dlSize;
                 $status->report();

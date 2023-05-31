@@ -15,6 +15,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+/**
+ * @deprecated
+ */
 abstract class BaseDownloadCommand extends Command
 {
     use RandomizationAware;

@@ -13,37 +13,29 @@ trait PhotoFilterAware
     protected function createFilteredPhotos(ClassMetadata $classMeta, QueryBuilder $qb, array $filters, $sortField, $sortDir): QueryBuilder
     {
         foreach ($filters as $field => $value) {
-            if (!$classMeta->hasField($field)) {
-                throw new InvalidArgumentException(
-                    \sprintf(
-                        'Field "%s" used for filtering does not exist in entity "%s"',
-                        $field,
-                        $classMeta->getName()
-                    )
-                );
+            $this->validateFieldName($field, 'filtering', $classMeta);
+            $scopedField = 'photo.' . $field;
+
+            if ($value === null) {
+                $qb->andWhere($qb->expr()->andX($qb->expr()->isNull($scopedField)));
+                continue;
             }
 
-
+            $param = ':' . \str_replace('.', '_', $field);
             if (\is_string($value) && \str_contains($value, '%')) {
-                $expr = $qb->expr()->andX($qb->expr()->like('photo.' . $field, ':' . $field));
+                $expr = $qb->expr()->andX($qb->expr()->like($scopedField, $param));
+            } elseif (\is_scalar($value) && \str_starts_with((string)$value, '!') && isset($value[1])) {
+                $expr = $qb->expr()->andX($qb->expr()->neq($scopedField, $param));
+                $value = \substr((string)$value, 1);
             } else {
-                $expr = $qb->expr()->andX($qb->expr()->eq('photo.' . $field, ':' . $field));
+                $expr = $qb->expr()->andX($qb->expr()->eq($scopedField, $param));
             }
 
-            //$qb->andWhere($expr);
-            //$qb->setParameter(':' . $field, $value);
+            $qb->andWhere($expr)
+               ->setParameter($param, $value);
         }
 
-        if (!$classMeta->hasField($sortField)) {
-            throw new InvalidArgumentException(
-                \sprintf(
-                    'Field "%s" used for sorting does not exist in entity "%s"',
-                    $sortField,
-                    $classMeta->getName()
-                )
-            );
-        }
-
+        $this->validateFieldName($sortField, 'sorting', $classMeta);
         $order = \strtoupper($sortDir);
         if ($order !== 'ASC' && $order !== 'DESC') {
             throw new InvalidArgumentException(
@@ -57,5 +49,28 @@ trait PhotoFilterAware
         $qb->orderBy('photo.' . $sortField, $order);
 
         return $qb;
+    }
+
+    private function validateFieldName(string $fieldName, string $context, ClassMetadata $classMetadata): void
+    {
+        if ($classMetadata->hasField($fieldName) || $classMetadata->hasAssociation($fieldName)) {
+            return;
+        }
+
+        throw new InvalidArgumentException(
+            \sprintf(
+                'Field "%s" used for %s does not exist in entity "%s". Valid fields: %s',
+                $fieldName,
+                $context,
+                $classMetadata->getName(),
+                \implode(
+                    ', ',
+                    \array_merge(
+                        \array_column($classMetadata->fieldMappings, 'fieldName'),
+                        \array_column($classMetadata->associationMappings, 'fieldName'),
+                    )
+                )
+            )
+        );
     }
 }

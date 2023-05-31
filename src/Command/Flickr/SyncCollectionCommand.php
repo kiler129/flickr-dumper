@@ -148,7 +148,10 @@ class SyncCollectionCommand extends Command
         $repairFiles = $input->getOption('repair-files');
         if ($input->getOption('index-only')) {
             if ($repairFiles) {
-                $this->io->error('--index-only and --repair-files are mutually exclusive');
+                $this->io->error(
+                    '--index-only and --repair-files are mutually exclusive. You cannot repair files ' .
+                    '(--repair-files) if you are requesting no files to be downloaded (--index-only)'
+                );
                 return null;
             }
 
@@ -189,8 +192,12 @@ class SyncCollectionCommand extends Command
         if (!isset($this->progressScreens[$jobId])) {
             $screen = \array_pop($this->availableScreens);
             if ($screen === null) {
+                dump('NEW SECTION ADDED, AVSCRS: ' . \count($this->availableScreens) . ' PRGSCRS: ' . \count($this->progressScreens));
                 $screen = $this->progressOutput->section();
             }
+
+            dump('REUSING SECTION, AVSCRS: ' . \count($this->availableScreens) . ' PRGSCRS: ' . \count($this->progressScreens));
+
 
             $bar = new ProgressBar($screen);
             $bar->setEmptyBarCharacter('▱');
