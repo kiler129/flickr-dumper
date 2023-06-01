@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 namespace App\UseCase;
 
-use App\Entity\Flickr\PhotoCollection;
+use App\Entity\Flickr\Collection\PhotoCollection;
 use App\Entity\Flickr\User;
 use App\Exception\DomainException;
 use App\Flickr\Client\FlickrApiClient;
+use App\Flickr\Struct\ApiDto\PhotoDto;
 use App\Flickr\Struct\Identity\UserIdentity;
-use App\Flickr\Struct\PhotoDto;
 use App\Flickr\Url\UrlGenerator;
 use App\Repository\Flickr\UserRepository;
 use Psr\Log\LoggerInterface;

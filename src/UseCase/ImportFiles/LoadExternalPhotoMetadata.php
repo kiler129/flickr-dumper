@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\UseCase\ImportFiles;
 
-use App\Flickr\Struct\PhotoDto;
+use App\Flickr\Struct\ApiDto\PhotoDto;
 use Psr\Log\LoggerInterface;
 
 /**

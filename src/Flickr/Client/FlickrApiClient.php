@@ -6,6 +6,7 @@ namespace App\Flickr\Client;
 use App\Exception\Api\BadApiMethodCallException;
 use App\Exception\Api\TransportException;
 use App\Flickr\ClientEndpoint\FavoritesEndpoint;
+use App\Flickr\ClientEndpoint\GalleriesEndpoint;
 use App\Flickr\ClientEndpoint\PandaEndpoint;
 use App\Flickr\ClientEndpoint\PeopleEndpoint;
 use App\Flickr\ClientEndpoint\PhotosEndpoint;
@@ -24,6 +25,7 @@ use Symfony\Contracts\Service\ServiceSubscriberInterface;
 final class FlickrApiClient implements ServiceSubscriberInterface
 {
     private FavoritesEndpoint $favorites;
+    private GalleriesEndpoint $galleries;
     private PandaEndpoint $panda;
     private PeopleEndpoint $people;
     private PhotosEndpoint $photos;
@@ -42,6 +44,11 @@ final class FlickrApiClient implements ServiceSubscriberInterface
     public function getFavorites(): FavoritesEndpoint
     {
         return $this->favorites ??= new FavoritesEndpoint($this);
+    }
+
+    public function getGalleries(): GalleriesEndpoint
+    {
+        return $this->galleries ??= new GalleriesEndpoint($this);
     }
 
     public function getPanda(): PandaEndpoint

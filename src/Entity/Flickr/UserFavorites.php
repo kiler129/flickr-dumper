@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use App\Entity\Flickr\Collection\PhotoCollection;
+use App\Entity\Flickr\Collection\PhotoCollectionFragment;
+use App\Entity\Flickr\Status\CollectionStatus;
 use App\Repository\Flickr\UserFavoritesRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;

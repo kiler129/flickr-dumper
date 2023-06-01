@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace App\Command\Flickr;
 
-use App\Entity\Flickr\Photoset;
+use App\Entity\Flickr\Collection\Gallery;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Entity\Flickr\UserFavorites;
+use App\Repository\Flickr\GalleryRepository;
 use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\PhotosetRepository;
 use App\Repository\Flickr\UserFavoritesRepository;
@@ -24,7 +26,13 @@ class UnlockIndex extends Command
 {
     private SymfonyStyle $io;
 
-    public function __construct(private EntityManagerInterface $om, private PhotoRepository $photoRepo, private PhotosetRepository $photosetRepo, private UserFavoritesRepository $favesRepo) {
+    public function __construct(
+        private EntityManagerInterface $om,
+        private PhotoRepository $photoRepo,
+        private PhotosetRepository $photosetRepo,
+        private UserFavoritesRepository $favesRepo,
+        private GalleryRepository $galleryRepo,
+    ) {
         parent::__construct();
     }
 
@@ -33,6 +41,7 @@ class UnlockIndex extends Command
         $this->addOption('photos', 'p', InputOption::VALUE_NONE, 'Unlocks locked photos')
              ->addOption('albums', 'a', InputOption::VALUE_NONE, 'Unlocks locked photosets/albums')
              ->addOption('favorites', 'f', InputOption::VALUE_NONE, 'Unlocks locked user favorites')
+             ->addOption('galleries', 'g', InputOption::VALUE_NONE, 'Unlocks locked user galleries')
         ;
     }
 
@@ -42,8 +51,9 @@ class UnlockIndex extends Command
         $photos = $input->getOption('albums');
         $photosets = $input->getOption('albums');
         $favorites = $input->getOption('favorites');
+        $galleries = $input->getOption('galleries');
 
-        if (!($photos || $photosets || $favorites)) {
+        if (!($photos || $photosets || $favorites || $galleries)) {
             $this->io->warning('Nothing unlocked - see options');
 
             return Command::FAILURE;
@@ -64,6 +74,10 @@ class UnlockIndex extends Command
 
         if ($favorites) {
             $this->unlockFavorites();
+        }
+
+        if ($galleries) {
+            $this->unlockGalleries();
         }
 
         $this->om->flush();
@@ -100,6 +114,17 @@ class UnlockIndex extends Command
             $this->favesRepo->save($faves);
 
             $this->io->success(\sprintf('Unlocked user favorites for user NSID=%d', $faves->getOwner()->getNsid()));
+        }
+    }
+
+    private function unlockGalleries(): void
+    {
+        /** @var Gallery $gallery */
+        foreach ($this->galleryRepo->findLocked() as $gallery) {
+            $gallery->unlockForWrite();
+            $this->galleryRepo->save($gallery);
+
+            $this->io->success(\sprintf('Unlocked gallery id=%d', $gallery->getId()));
         }
     }
 }

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Struct;
 
+/** @deprecated This should be changed to enum and in App\Flickr NS */
 final class MediaType
 {
     public const ALL_TYPES = 'all';

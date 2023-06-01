@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Flickr\Struct;
+namespace App\Flickr\Struct\ApiDto;
 
 use App\Exception\DomainException;
 use App\Exception\InvalidArgumentException;
+use App\Flickr\Enum\PhotoExtraFields;
+use App\Flickr\Enum\PhotoSize;
 use App\Flickr\Enum\SafetyLevel;
-use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoSize;
 
 /**
  * Simple DTO to map array response from API to a typed object

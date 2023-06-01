@@ -40,7 +40,7 @@ class PhotosetsEndpoint
             'page' => $page,
         ];
 
-        $this->validatePaginationValues($page, $perPage);
+        $this->validateRegularPaginationValues($page, $perPage);
 
         if (\count($primaryPhotoExtras) !== 0) {
             $params['primary_photo_extras'] = $this->serializeExtras($primaryPhotoExtras);
@@ -64,7 +64,7 @@ class PhotosetsEndpoint
         array $sortGroups = [],
         ?callable $pageFinishCallback = null,
     ): iterable {
-        return $this->flattenPages(
+        return $this->flattenRegularPages(
             fn(int $page) => $this->getList($userId, $page, $perPage, $primaryPhotoExtras, $photoIds, $sortGroups),
             $pageFinishCallback,
             'photoset'
@@ -87,7 +87,7 @@ class PhotosetsEndpoint
             'page' => $page,
         ];
 
-        $this->validatePaginationValues($page, $perPage);
+        $this->validateRegularPaginationValues($page, $perPage);
 
         if (\count($extras) !== 0) {
             $params['extras'] = $this->serializeExtras($extras);
@@ -114,7 +114,7 @@ class PhotosetsEndpoint
         ?callable $pageFinishCallback = null,
     ): iterable
     {
-        return $this->flattenPages(
+        return $this->flattenRegularPages(
             fn(int $page) => $this->getPhotos(
                 $userId,
                 $photosetId,

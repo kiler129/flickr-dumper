@@ -3,13 +3,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Entity\Flickr\Photoset;
+use App\Entity\Flickr\Collection\Gallery;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Entity\Flickr\User;
-use App\Exception\LogicException;
+use App\Repository\Flickr\GalleryRepository;
 use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\PhotosetRepository;
 use App\Repository\Flickr\UserFavoritesRepository;
-use App\Struct\View\BreadcrumbDto;
 use App\Struct\View\PhotoPredefinedFilter;
 use App\Struct\View\PhotoSuggestedSort;
 use App\UseCase\View\GenerateBreadcrumbs;
@@ -20,7 +20,6 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 
 /**
@@ -28,8 +27,12 @@ use Symfony\Component\Routing\Annotation\Route;
  */
 class PhotoListController extends AbstractController
 {
-    public function __construct(private PhotoRepository $photoRepo, private PhotosetRepository $photosetRepo, private GenerateBreadcrumbs $breadcrumbsUC)
-    {
+    public function __construct(
+        private PhotoRepository $photoRepo,
+        private PhotosetRepository $photosetRepo,
+        private GalleryRepository $galleryRepo,
+        private GenerateBreadcrumbs $breadcrumbsUC
+    ) {
     }
 
     #[Route('/photo/all', methods: ['GET'], name: 'app.photos_all')]
@@ -73,6 +76,35 @@ class PhotoListController extends AbstractController
                 $orderDir
             ),
             ['breadcrumbs' => $this->breadcrumbsUC->forAlbum($user, $album)]
+        );
+    }
+
+    #[Route('/user/{userId}/gallery/{galleryId}', methods: ['GET'], name: 'app.photos_in_gallery')]
+    public function showGallery(
+        Request $request,
+        #[MapEntity(mapping: ['userId' => 'nsid'])] User $user,
+        #[MapEntity(mapping: ['galleryId' => 'id'])] Gallery $gallery): Response
+    {
+        if ($gallery->getOwner() !== $user) {
+            throw new BadRequestException(
+                \sprintf(
+                    'User "%s" is not an owner of gallery "%d" (owned by "%s")',
+                    $user->getNsid(),
+                    $gallery->getId(),
+                    $gallery->getOwner()->getNsid()
+                )
+            );
+        }
+
+        return $this->displayGenericCollection(
+            $request,
+            fn(array $filters, string $orderBy, string $orderDir) => $this->galleryRepo->createForAllPhotosInGallery(
+                $gallery->getId(),
+                $filters,
+                $orderBy,
+                $orderDir
+            ),
+            ['breadcrumbs' => $this->breadcrumbsUC->forGallery($user, $gallery)]
         );
     }
 

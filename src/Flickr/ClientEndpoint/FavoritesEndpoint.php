@@ -38,7 +38,7 @@ class FavoritesEndpoint
             'page' => $page,
         ];
 
-        $this->validatePaginationValues($page, $perPage);
+        $this->validateRegularPaginationValues($page, $perPage);
 
         if ($minDate !== null) {
             $params['min_fave_date'] = $minDate->getTimestamp();
@@ -63,7 +63,7 @@ class FavoritesEndpoint
         int $perPage = self::MAX_PER_PAGE,
         ?callable $pageFinishCallback = null,
     ): iterable {
-        return $this->flattenPages(
+        return $this->flattenRegularPages(
             fn(int $page) => $this->getList($userId, $minDate, $maxDate, $extras, $page, $perPage),
             $pageFinishCallback,
             'photo'

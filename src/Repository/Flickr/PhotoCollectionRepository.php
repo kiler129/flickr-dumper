@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Repository\Flickr;
 
-use App\Entity\Flickr\PhotoCollection;
+use App\Entity\Flickr\Collection\PhotoCollection;
 use App\Repository\CollectionRepository;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 

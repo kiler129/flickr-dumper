@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Flickr\Struct;
+namespace App\Flickr\Struct\ApiDto;
 
 use App\Exception\DomainException;
 use App\Exception\InvalidArgumentException;
@@ -69,7 +69,7 @@ abstract class BaseDto
 
     final protected function castDateTime(int|string $value): \DateTimeInterface
     {
-        if ((string)(int)$value === (string)$value) {
+        if ((string)(int)$value === (string)$value) { //It's an int-in-string, so a timestamp
             $dti = new \DateTimeImmutable();
             return $dti->setTimestamp((int)$value);
         }

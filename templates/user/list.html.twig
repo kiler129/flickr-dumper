@@ -24,6 +24,7 @@
             {% set user = result['user'] %}
             {% set photosCount = result['photo_count'] %}
             {% set photosetCount = result['photoset_count'] %}
+            {% set galleryCount = result['gallery_count'] %}
             {% set favesCount = result['faves_count'] %}
             {% set favesWithoutVotesCount = result['faves_photos_without_votes'] %}
 
@@ -49,6 +50,13 @@
                         <span class="placeholder">None</span>
                     {% else %}
                         <a href="{{ url('app.user_resources_albums', {'userId': user.nsid}) }}">{{ photosetCount }} albums</a>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if galleryCount == 0 %}
+                        <span class="placeholder">None</span>
+                    {% else %}
+                        <a href="{{ url('app.user_resources_galleries', {'userId': user.nsid}) }}">{{ galleryCount }} galleries</a>
                     {% endif %}
                 </td>
                 <td>

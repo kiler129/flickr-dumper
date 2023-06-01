@@ -1,11 +1,16 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Entity\Flickr;
+namespace App\Entity\Flickr\Collection;
 
+use App\Entity\Flickr\Photo;
 use App\Entity\Flickr\Stats\RemoteCollectionStats;
-use App\Entity\Flickr\Stats\RemoteStats;
-use App\Exception\LogicException;
+use App\Entity\Flickr\Status\CollectionStatus;
+use App\Entity\Flickr\Syncable;
+use App\Entity\Flickr\SyncableFragment;
+use App\Entity\Flickr\UpdateDateAware;
+use App\Entity\Flickr\User;
+use App\Entity\Flickr\UserOwnedEntity;
 use App\Repository\Flickr\PhotosetRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -14,7 +19,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\String\UnicodeString;
 
 #[ORM\Entity(repositoryClass: PhotosetRepository::class)]
-class Photoset implements PhotoCollection, UserOwnedEntity, Syncable
+class Photoset implements PhotoCollection, UserOwnedEntity, Syncable, UpdateDateAware
 {
     use PhotoCollectionFragment;
     use SyncableFragment;

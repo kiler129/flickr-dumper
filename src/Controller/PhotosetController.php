@@ -3,10 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Entity\Flickr\Photoset;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Entity\Flickr\User;
 use App\Repository\Flickr\PhotosetRepository;
-use App\Repository\Flickr\UserRepository;
 use App\UseCase\View\GenerateBreadcrumbs;
 use Pagerfanta\Doctrine\ORM\QueryAdapter;
 use Pagerfanta\Pagerfanta;
@@ -56,7 +55,7 @@ final class PhotosetController extends AbstractController
     }
 
     #[Route('/user/{userId}/album', methods: ['GET'], name: 'app.user_resources_albums')]
-    public function showUserPhotoset(Request $request, #[MapEntity(mapping: ['userId' => 'nsid'])] User $user): Response
+    public function showUserPhotosets(Request $request, #[MapEntity(mapping: ['userId' => 'nsid'])] User $user): Response
     {
         $pagerfanta = new Pagerfanta(
             new QueryAdapter($this->photosetRepo->createForAllDisplayableForUser($user->getNsid()))

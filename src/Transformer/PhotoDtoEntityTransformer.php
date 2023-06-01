@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Transformer;
 
 use App\Entity\Flickr\Photo;
-use App\Flickr\Struct\PhotoDto;
+use App\Flickr\Struct\ApiDto\PhotoDto;
 use Psr\Log\LoggerInterface;
 
 class PhotoDtoEntityTransformer

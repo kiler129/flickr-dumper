@@ -3,12 +3,15 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use App\Entity\Flickr\Collection\Gallery;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Entity\Flickr\Stats\LocalItemStats;
 use App\Entity\Flickr\Stats\RemoteStats;
+use App\Entity\Flickr\Status\PhotoStatus;
 use App\Exception\LogicException;
+use App\Flickr\Enum\PhotoSize;
 use App\Flickr\Enum\SafetyLevel;
 use App\Repository\Flickr\PhotoRepository;
-use App\Struct\PhotoSize;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -70,6 +73,9 @@ class Photo
     //These are mapped to allow DQL access, but should NOT be operated from within the entity
     #[ORM\ManyToMany(targetEntity: Photoset::class, mappedBy: 'photos')]
     private Collection $photosets;
+
+    #[ORM\ManyToMany(targetEntity: Gallery::class, mappedBy: 'photos')]
+    private Collection $galleries;
 
     #[ORM\ManyToMany(targetEntity: UserFavorites::class, mappedBy: 'photos')]
     private Collection $userFavorites;

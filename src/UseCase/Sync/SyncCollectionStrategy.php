@@ -3,22 +3,23 @@ declare(strict_types=1);
 
 namespace App\UseCase\Sync;
 
+use App\Entity\Flickr\Collection\PhotoCollection;
 use App\Entity\Flickr\Photo;
-use App\Entity\Flickr\PhotoCollection;
+use App\Entity\Flickr\UpdateDateAware;
 use App\Entity\Flickr\User;
 use App\Entity\Flickr\UserOwnedEntity;
 use App\Exception\InvalidArgumentException;
 use App\Exception\SyncException;
 use App\Flickr\Client\FlickrApiClient;
+use App\Flickr\Enum\PhotoExtraFields;
+use App\Flickr\Enum\PhotoSize;
 use App\Flickr\Factory\ApiClientConfigFactory;
+use App\Flickr\Struct\ApiDto\PhotoDto;
 use App\Flickr\Struct\Identity\MediaCollectionIdentity;
 use App\Flickr\Struct\Identity\OwnerAwareIdentity;
-use App\Flickr\Struct\PhotoDto;
 use App\Flickr\Url\UrlParser;
 use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\UserRepository;
-use App\Struct\PhotoExtraFields;
-use App\Struct\PhotoSize;
 use App\Transformer\PhotoDtoEntityTransformer;
 use App\UseCase\FetchPhotoToDisk;
 use App\UseCase\ResolveOwner;
@@ -91,6 +92,12 @@ abstract class SyncCollectionStrategy
      */
     public bool $switchIdentities = false;
 
+    /**
+     * @var int How often to flush photos. It's a tradeoff between potentially loosing a batch in case of a crash and
+     *          speed. Setting it to 1 is the safest but also very slow.
+     */
+    public int $photoFlushBatchSize = 100;
+
     protected FlickrApiClient $api;
     protected LoggerInterface $log;
     private UserRepository $userRepo;
@@ -99,6 +106,8 @@ abstract class SyncCollectionStrategy
     private ResolveOwner $resolveOwner;
     private UrlParser $urlParser;
     private EntityManagerInterface $om;
+    private int                    $currentPhotoBatchFill = 0;
+
 
     public function __construct(private ContainerInterface $locator)
     {
@@ -235,6 +244,16 @@ abstract class SyncCollectionStrategy
             return true;
         }
 
+        if (!($collection instanceof UpdateDateAware)) {
+            $this->log->info('{id} will attempt sync: update status is impossible to determine without re-iteration',
+                             [
+                                 'id' => $collection->getUserReadableId(),
+                             ]
+            );
+
+            return true;
+        }
+
         $newLastUpdated = $collection->getDateLastUpdated();
         if ($newLastUpdated === null || ($localLastUpdated !== null && $newLastUpdated <= $localLastUpdated)) {
             $this->log->debug(
@@ -248,7 +267,7 @@ abstract class SyncCollectionStrategy
                          [
                              'id' => $collection->getUserReadableId(),
                              'ldate' => $localLastUpdated ?? 'never updated',
-                             'rdate' => $newLastUpdated,
+                             'rdate' => $newLastUpdated ?? 'unknown update date',
                          ]
         );
 
@@ -332,7 +351,8 @@ abstract class SyncCollectionStrategy
             );
             $localPhotos->add($localPhoto);
         }
-        $this->photoRepo->save($localPhoto, true);
+        $this->photoRepo->save($localPhoto);
+        $this->handlePhotoBatchFlush();
 
         if ($this->shouldSyncPhoto(
             $photoId,
@@ -346,6 +366,32 @@ abstract class SyncCollectionStrategy
         }
 
         return true;
+    }
+
+    private function handlePhotoBatchFlush(bool $force = false): void
+    {
+        if (!$force && $this->currentPhotoBatchFill+1 <= $this->photoFlushBatchSize) {
+            $this->log->debug(
+                'Photos batch has {fill} photos - not flushing until {size}',
+                ['fill' => $this->currentPhotoBatchFill, 'size' => $this->photoFlushBatchSize]
+            );
+
+            ++$this->currentPhotoBatchFill;
+            return;
+        }
+
+        if ($this->currentPhotoBatchFill === 0) {
+            $this->log->debug('Not flushing photos despite $force - batch empty');
+            return;
+        }
+
+        $this->log->info(
+            'Photos batch has {fill} photos - flushing (' . ($force ? 'forced, normally at' : 'size is') .' >={size})',
+            ['fill' => $this->currentPhotoBatchFill, 'size' => $this->photoFlushBatchSize]
+        );
+
+        $this->om->flush();
+        $this->currentPhotoBatchFill = 0;
     }
 
     private function verifyPhotoState(Photo $photo): bool
@@ -391,6 +437,15 @@ abstract class SyncCollectionStrategy
         if (!$this->trustPhotoRecords) {
             $this->log->info(
                 'Syncing photo id={phid}: setting enforces re-verification of photo records', ['phid' => $photoId]
+            );
+            return true;
+        }
+
+        //Most likely download crashed
+        if ($localPhoto->getLocalPath() === null && $localPhoto->getCdnUrl() !== null) {
+            $this->log->info(
+                'Syncing photo id={phid}: the remote URL and metadata are present but no local file was ever fetched',
+                ['phid' => $photoId]
             );
             return true;
         }
@@ -491,4 +546,8 @@ abstract class SyncCollectionStrategy
         ];
     }
 
+    public function __destruct()
+    {
+        $this->handlePhotoBatchFlush(true);
+    }
 }

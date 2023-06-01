@@ -5,10 +5,12 @@ namespace App\Factory;
 
 use App\Exception\RuntimeException;
 use App\Flickr\Struct\Identity\AlbumIdentity;
+use App\Flickr\Struct\Identity\GalleryIdentity;
 use App\Flickr\Struct\Identity\MediaCollectionIdentity;
 use App\Flickr\Struct\Identity\UserFavesIdentity;
 use App\UseCase\FetchPhotoToDisk;
 use App\UseCase\Sync\SyncCollectionStrategy;
+use App\UseCase\Sync\SyncGalleryStrategy;
 use App\UseCase\Sync\SyncPhotosetStrategy;
 use App\UseCase\Sync\SyncUserFavoritesStrategy;
 use Psr\Container\ContainerInterface;
@@ -17,7 +19,7 @@ use Symfony\Contracts\Service\ServiceSubscriberInterface;
 /**
  * @phpstan-import-type TSyncCallback from FetchPhotoToDisk
  *
- * @todo this can probably be replaced with some magic locator
+ * @todo this can probably be replaced with some magic locator from container to not map this manually
  */
 final class SyncStrategyFactory implements ServiceSubscriberInterface
 {
@@ -39,8 +41,9 @@ final class SyncStrategyFactory implements ServiceSubscriberInterface
     public static function getSubscribedServices(): array
     {
         return [
+            GalleryIdentity::class => SyncGalleryStrategy::class,
             AlbumIdentity::class => SyncPhotosetStrategy::class,
-            UserFavesIdentity::class => SyncUserFavoritesStrategy::class
+            UserFavesIdentity::class => SyncUserFavoritesStrategy::class,
         ];
     }
 }

@@ -419,43 +419,4 @@ class AgentIdentityProvider
 
         return new AgentIdentity(\sprintf('%s/%s', $uaKind, $uaVersion), ['Accept' => '*/*']);
     }
-
-
-
-
-
-    ////////////////////////////// DEPRECATED METHOD //////////////////////////////
-
-    /** @deprecated exists only as polyfill here for now */
-    private function identityToHeaders(AgentIdentity $id): array
-    {
-        $headers = $id->headers;
-        $headers['User-Agent'] = $id->userAgent;
-
-        return $headers;
-    }
-
-    /**
-     * @deprecated use getCommonBrowser
-     */
-    public function getCommonBrowserHeaders(): array
-    {
-        return $this->identityToHeaders($this->getCommonBrowser());
-    }
-
-    /** @deprecated use getRandomBrowser()  */
-    public function getRandomBrowserHeaders(): array
-    {
-        return $this->identityToHeaders($this->getRandomBrowser());
-    }
-
-    public function getCommonApiClientHeaders(): array
-    {
-        return $this->identityToHeaders($this->getCommonCliClient());
-    }
-
-    public function getRandomApiClientHeaders(): array
-    {
-        return $this->identityToHeaders($this->getRandomCliClient());
-    }
 }

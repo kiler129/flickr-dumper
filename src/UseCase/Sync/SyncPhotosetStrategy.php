@@ -3,22 +3,15 @@ declare(strict_types=1);
 
 namespace App\UseCase\Sync;
 
-use App\Entity\Flickr\Photoset;
-use App\Flickr\Client\FlickrApiClient;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Flickr\ClientEndpoint\PhotosetsEndpoint;
+use App\Flickr\Struct\ApiDto\PhotoDto;
+use App\Flickr\Struct\ApiDto\PhotosetDto;
 use App\Flickr\Struct\Identity\AlbumIdentity;
 use App\Flickr\Struct\Identity\MediaCollectionIdentity;
-use App\Flickr\Struct\PhotoDto;
-use App\Flickr\Url\UrlParser;
-use App\Repository\Flickr\PhotoRepository;
 use App\Repository\Flickr\PhotosetRepository;
-use App\Repository\Flickr\UserRepository;
-use App\Transformer\PhotoDtoEntityTransformer;
 use App\UseCase\FetchPhotoToDisk;
-use App\UseCase\ResolveOwner;
-use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
-use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Service\ServiceSubscriberInterface;
 
 /**
@@ -39,6 +32,8 @@ final class SyncPhotosetStrategy extends SyncCollectionStrategy implements Servi
      */
     protected function syncSpecificCollection(MediaCollectionIdentity $identity, callable $sink): bool
     {
+        \assert($identity instanceof AlbumIdentity);
+
         $collection = $this->repo->find($identity->setId);
         $localLastUpdated = null;
 
@@ -69,14 +64,18 @@ final class SyncPhotosetStrategy extends SyncCollectionStrategy implements Servi
         $this->ensureOwnerNSID($identity, $collection);
 
         $apiCollection = $this->api->getPhotosets()->getInfo($identity->ownerNSID, $identity->setId);
-        $apiInfo = $apiCollection->getContent();
+        if (!$apiCollection->isSuccessful()) {
+            $this->log->error('Album/photoset {id} sync failed: API failure (see above)', ['id' => $identity->setId]);
+            return false;
+        }
+        $apiPhotoset = PhotosetDto::fromGenericApiResponse($apiCollection->getContent());
+
         if ($collection === null) { //it's a good time to create collection to consistent work on it
-            \assert((string)(int)$apiInfo['id'] === $apiInfo['id'], 'Expected (int)id but got "' . $apiInfo['id'] ."");
-            $collection = new Photoset((int)$apiInfo['id'], $this->getOwnerUser($identity->ownerNSID));
+            $collection = new Photoset($apiPhotoset->id, $this->getOwnerUser($identity->ownerNSID));
         }
 
         //Some properties are UPDATED regardless of whether album contents is updated
-        $this->setPhotosetMetadata($collection, $apiInfo);
+        $this->setPhotosetMetadata($collection, $apiPhotoset);
         $this->repo->save($collection, true);
 
         if (!$this->shouldSyncCollectionItems($collection, $localLastUpdated)) {
@@ -120,31 +119,53 @@ final class SyncPhotosetStrategy extends SyncCollectionStrategy implements Servi
                          );
     }
 
-    private function setPhotosetMetadata(Photoset $local, array $apiPhotoset): void
+    /**
+     * @todo This should be moved to PhotosetDtoEntityTransformer for consistency
+     */
+    private function setPhotosetMetadata(
+        Photoset $local,
+        PhotosetDto $apiPhotoset,
+        ?\DateTimeInterface $lastRetrieved = null
+    ): void
     {
-        $local->setApiData($apiPhotoset)
-              ->setDateLastRetrieved(new \DateTimeImmutable());
+        $local->setApiData($apiPhotoset->apiData)
+              ->setDateLastRetrieved($lastRetrieved ?? new \DateTimeImmutable());
 
-        if (isset($apiPhotoset['title']['_content'])) {
-            $local->setTitle($apiPhotoset['title']['_content']);
+        if ($apiPhotoset->hasProperty('title')) {
+            $local->setTitle($apiPhotoset->title);
         }
 
-        if (isset($apiPhotoset['description']['_content'])) {
-            $local->setDescription($apiPhotoset['description']['_content']);
+        if ($apiPhotoset->hasProperty('description')) {
+            $local->setDescription($apiPhotoset->description);
         }
 
-        if ($local->getDateCreated() === null) {
-            $local->setDateCreated((new \DateTimeImmutable())->setTimestamp((int)$apiPhotoset['date_create']));
+        if ($local->getDateCreated() === null && isset($apiPhotoset->dateCreated)) {
+            $local->setDateCreated($apiPhotoset->dateCreated);
         }
 
         $dateUpdateLocal = $local->getDateLastUpdated();
-        $dateUpdateApi = (new \DateTimeImmutable())->setTimestamp((int)$apiPhotoset['date_update']);
-        if ($dateUpdateLocal === null || $dateUpdateApi > $dateUpdateLocal) {
-            $local->setDateLastUpdated($dateUpdateApi);
+        if (isset($apiPhotoset->dateUpdated) && ($dateUpdateLocal === null || $apiPhotoset->dateUpdated > $dateUpdateLocal)) {
+            $local->setDateLastUpdated($apiPhotoset->dateUpdated);
+        }
+
+        if (isset($apiPhotoset->views)) {
+            $local->remoteStats->views = $apiPhotoset->views;
+        }
+
+        if (isset($apiPhotoset->commentsCount)) {
+            $local->remoteStats->comments = $apiPhotoset->commentsCount;
+        }
+
+        if (isset($apiPhotoset->photosCount)) {
+            $local->remoteStats->photos = $apiPhotoset->photosCount;
+        }
+
+        if (isset($apiPhotoset->videosCount)) {
+            $local->remoteStats->videos = $apiPhotoset->videosCount;
         }
 
         if ($local->getOwner() === null) {
-            $local->setOwner($this->getOwnerUser($apiPhotoset['owner']));
+            $local->setOwner($this->getOwnerUser($apiPhotoset->ownerNsid));
         }
     }
 

@@ -3,12 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Entity\Flickr\Photoset;
 use App\Repository\Flickr\PhotosetRepository;
 use App\Repository\Flickr\UserRepository;
-use App\Struct\View\BreadcrumbDto;
 use App\UseCase\View\GenerateBreadcrumbs;
-use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;

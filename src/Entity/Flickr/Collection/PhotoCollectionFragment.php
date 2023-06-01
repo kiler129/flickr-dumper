@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Entity\Flickr;
+namespace App\Entity\Flickr\Collection;
 
+use App\Entity\Flickr\Photo;
+use App\Entity\Flickr\Status\CollectionStatus;
 use App\Exception\LogicException;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;

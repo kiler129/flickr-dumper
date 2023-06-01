@@ -5,7 +5,7 @@ namespace App\Flickr\Struct;
 
 use App\Exception\Api\ApiCallException;
 use App\Exception\Api\UnexpectedResponseException;
-use App\Struct\ApiError;
+use App\Flickr\Enum\ApiError;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
 readonly final class ApiResponse

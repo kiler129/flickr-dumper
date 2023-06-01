@@ -1,10 +1,8 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Entity\Flickr;
+namespace App\Entity\Flickr\Status;
 
-use Doctrine\DBAL\Types\Type;
-use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Embeddable]

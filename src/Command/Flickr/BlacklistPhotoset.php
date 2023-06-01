@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Command\Flickr;
 
-use App\Entity\Flickr\Photoset;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Flickr\Struct\Identity\AlbumIdentity;
 use App\Flickr\Url\UrlParser;
 use App\Repository\Flickr\PhotosetRepository;

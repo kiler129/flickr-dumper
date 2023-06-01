@@ -3,18 +3,12 @@ declare(strict_types=1);
 
 namespace App\Command\Flickr;
 
-use App\Command\BaseDownloadCommand;
 use App\Command\IdentitySwitching;
-use App\Factory\HttpClientFactory;
-use App\Flickr\BaseApiClient;
 use App\Flickr\Client\FlickrApiClient;
 use App\Flickr\Enum\MediaCollectionType;
 use App\Flickr\Factory\ApiClientConfigFactory;
-use App\Flickr\PhotoSets;
-use App\Flickr\Struct\PhotosetDto;
-use App\Flickr\Urls;
+use App\Flickr\Struct\ApiDto\PhotosetDto;
 use App\UseCase\ResolveOwner;
-use App\Util\NameGenerator;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -24,8 +18,6 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Finder\Finder;
 
 #[AsCommand(
     name: 'flickr:sync-user-photosets',

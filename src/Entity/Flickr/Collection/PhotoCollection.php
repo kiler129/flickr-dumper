@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Entity\Flickr;
+namespace App\Entity\Flickr\Collection;
 
+use App\Entity\Flickr\Photo;
+use App\Entity\Flickr\User;
 use Doctrine\Common\Collections\Collection;
 
 interface PhotoCollection

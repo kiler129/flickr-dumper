@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Exception\Api;
 
-use App\Struct\ApiError;
+use App\Flickr\Enum\ApiError;
 
 /** @deprecated  */
 class DecodeException extends ApiCallException

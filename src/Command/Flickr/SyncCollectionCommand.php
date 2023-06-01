@@ -5,6 +5,7 @@ namespace App\Command\Flickr;
 
 use App\Command\IdentitySwitching;
 use App\Entity\Flickr\Photo;
+use App\Factory\ConsoleSectionStackFactory;
 use App\Factory\SyncStrategyFactory;
 use App\Flickr\Enum\MediaCollectionType;
 use App\Flickr\Struct\Identity\AlbumIdentity;
@@ -15,6 +16,7 @@ use App\Flickr\Struct\Identity\UserFavesIdentity;
 use App\Flickr\Struct\Identity\UserPhotostreamIdentity;
 use App\Flickr\Url\UrlParser;
 use App\Struct\DownloadJobStatus;
+use App\Struct\OrderedObjectLibrary;
 use App\UseCase\FetchPhotoToDisk;
 use Psr\Log\LoggerInterface;
 use Symfony\Bridge\Monolog\Handler\ConsoleHandler;
@@ -49,13 +51,11 @@ class SyncCollectionCommand extends Command
 
     private SymfonyStyle           $io;
 
-    private ConsoleOutputInterface $progressOutput;
+    /** @var OrderedObjectLibrary<ConsoleSectionOutput> */
+    private OrderedObjectLibrary $sectionLibrary;
 
-    /** @var array<int, array{bar: ProgressBar, scr: ConsoleSectionOutput} */
-    private array $progressScreens = [];
-
-    /** @var ConsoleSectionOutput */
-    private array $availableScreens = [];
+    /** @var \SplObjectStorage<DownloadJobStatus, array{ProgressBar, ConsoleSectionOutput} */
+    private \SplObjectStorage $jobsProgress;
 
     /**
      * @param callable(): FetchPhotoToDisk    $fetchPhotoToDisk
@@ -63,11 +63,14 @@ class SyncCollectionCommand extends Command
     public function __construct(
         private LoggerInterface $log,
         private ConsoleHandler $consoleHandler,
+        private ConsoleSectionStackFactory $sectionFactory,
         private UrlParser $urlParser,
         private SyncStrategyFactory $syncFactory,
         private \Closure $fetchPhotoToDisk,
     ) {
         parent::__construct();
+
+        $this->jobsProgress = new \SplObjectStorage();
     }
 
     protected function configure()
@@ -164,14 +167,33 @@ class SyncCollectionCommand extends Command
         $dlUC = ($this->fetchPhotoToDisk)(); //this will always get a new instance
         $dlUC->switchIdentities = $this->switchIdentities;
 
-        if ($output instanceof ConsoleOutputInterface && !isset($this->progressOutput)) {
-            $this->progressOutput = $output;
-            $logSection = $output->section();
-            $this->consoleHandler->setOutput($logSection);
-            $dlUC->onProgress([$this, 'renderStatusProgress']);
-        }
+        //@todo BROKEN console
+        //if ($this->setupSectionedOutput($output)) {
+        //    $dlUC->onProgress([$this, 'renderStatusProgress']);
+        //}
 
         return $dlUC;
+    }
+
+    private function setupSectionedOutput(OutputInterface $output): bool
+    {
+        if (isset($this->sectionLibrary)) {
+            return true; //already done
+        }
+
+        if (!($output instanceof ConsoleOutputInterface)) {
+            $this->log->warning(
+                'Output for this command is not a console (found {found} instead of {expected}) - sectioned output ' .
+                'is not possible, thus live progress will not be reported',
+                ['found' => $output::class, 'expected' => ConsoleOutputInterface::class]
+            );
+            return false;
+        }
+
+        $this->sectionLibrary = $this->sectionFactory->createForOutput($output);
+        $this->consoleHandler->setOutput($this->sectionLibrary->borrow());
+
+        return true;
     }
 
     /**
@@ -179,7 +201,6 @@ class SyncCollectionCommand extends Command
      */
     public function renderStatusProgress(DownloadJobStatus $status): void
     {
-        $jobId = $status->jobId;
         $total = $status->bytesTotal;
         $downloaded = $status->bytesDownloaded;
         if ($total === -1) {
@@ -189,44 +210,45 @@ class SyncCollectionCommand extends Command
             $downloaded = 0;
         }
 
-        if (!isset($this->progressScreens[$jobId])) {
-            $screen = \array_pop($this->availableScreens);
-            if ($screen === null) {
-                dump('NEW SECTION ADDED, AVSCRS: ' . \count($this->availableScreens) . ' PRGSCRS: ' . \count($this->progressScreens));
-                $screen = $this->progressOutput->section();
+        //Job completed - clean up
+        if ($status->completed) {
+            if (!$this->jobsProgress->contains($status)) {
+                return; //bar was never started
             }
 
-            dump('REUSING SECTION, AVSCRS: ' . \count($this->availableScreens) . ' PRGSCRS: ' . \count($this->progressScreens));
+            [$bar, $screen] = $this->jobsProgress[$status];
+            $bar->finish();
+            $bar->clear();
+            $screen->clear();
+            $this->sectionLibrary->return($screen);
+            $this->jobsProgress->detach($status);
 
+            return;
+        }
 
+        //Brand new job (never seen) - create progress bar
+        if (!$this->jobsProgress->contains($status)) {
+            $screen = $this->sectionLibrary->borrow();
             $bar = new ProgressBar($screen);
             $bar->setEmptyBarCharacter('▱');
             $bar->setProgressCharacter('');
             $bar->setBarCharacter('▰');
             $bar->minSecondsBetweenRedraws(0.25);
 
-            $this->progressScreens[$jobId] = [
-                'bar' => $bar,
-                'scr' => $screen
-            ];
-
-            $this->progressScreens[$jobId]['bar']->start($total, $downloaded);
-        } elseif ($this->progressScreens[$jobId]['bar']->getMaxSteps() !== $total) {
-            $this->progressScreens[$jobId]['bar']->setMaxSteps($total);
-        }
-
-        if ($status->completed) {
-            $this->progressScreens[$jobId]['bar']->finish();
-            $this->progressScreens[$jobId]['scr']->clear();
-            $this->availableScreens[] = $this->progressScreens[$jobId]['scr'];
-            unset($this->progressScreens[$jobId]);
+            $bar->start($total, $downloaded);
+            $this->jobsProgress->attach($status, [$bar, $screen]);
 
             return;
         }
 
+        //Continue already existing job
+        $bar = $this->jobsProgress[$status][0];
+        if ($bar->getMaxSteps() !== $total) {
+            $bar->setMaxSteps($total);
+        }
 
-        if ($this->progressScreens[$jobId]['bar']->getProgress() !== $downloaded) {
-            $this->progressScreens[$jobId]['bar']->setProgress($downloaded);
+        if ($bar->getProgress() !== $downloaded) {
+            $bar->setProgress($downloaded);
         }
     }
 

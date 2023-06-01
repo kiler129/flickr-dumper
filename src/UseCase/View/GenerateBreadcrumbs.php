@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 namespace App\UseCase\View;
 
-use App\Entity\Flickr\Photoset;
+use App\Entity\Flickr\Collection\Gallery;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Entity\Flickr\User;
 use App\Struct\View\BreadcrumbDto;
 use Symfony\Component\Routing\RouterInterface;
@@ -37,6 +38,14 @@ class GenerateBreadcrumbs
         return $out;
     }
 
+    public function forAllGalleries(): array
+    {
+        $out = $this->forHome();
+        $out[] = new BreadcrumbDto('All Galleries', $this->router->generate('app.galleries_all'));
+
+        return $out;
+    }
+
     public function forAllUsers(): array
     {
         $out = $this->forHome();
@@ -62,6 +71,17 @@ class GenerateBreadcrumbs
         $out[] = new BreadcrumbDto(
             'Albums',
             $this->router->generate('app.user_resources_albums', ['userId' => $user->getNsid()])
+        );
+
+        return $out;
+    }
+
+    public function forUserGalleriesList(User $user): array
+    {
+        $out = $this->forUser($user);
+        $out[] = new BreadcrumbDto(
+            'Galleries',
+            $this->router->generate('app.user_resources_galleries', ['userId' => $user->getNsid()])
         );
 
         return $out;
@@ -97,6 +117,19 @@ class GenerateBreadcrumbs
             $this->router->generate(
                 'app.photos_in_album',
                 ['userId' => $user->getNsid(), 'albumId' => $photoset->getId()])
+        );
+
+        return $out;
+    }
+
+    public function forGallery(User $user, Gallery $gallery): array
+    {
+        $out = $this->forUserGalleriesList($user);
+        $out[] = new BreadcrumbDto(
+            $gallery->getTitle() ?? \sprintf('Gallery #%d', $gallery->getId()),
+            $this->router->generate(
+                'app.photos_in_gallery',
+                ['userId' => $user->getNsid(), 'galleryId' => $gallery->getId()])
         );
 
         return $out;

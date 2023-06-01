@@ -1,11 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Struct;
+namespace App\Flickr\Enum;
 
 /**
  * @see https://www.flickr.com/services/api/misc.urls.html
- * @deprecated This should be moved to App\Flickr\Enum namespace
  */
 enum PhotoSize: string
 {

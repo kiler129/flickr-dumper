@@ -47,7 +47,7 @@ class CdnRetryStrategy extends GenericRetryStrategy
 
         //This sometimes happens just out of blue and a HTML error is returned with HTTP/200 code by CloudFront
         $headers = $context->getHeaders();
-        if (isset($headers['content-type']) && \str_starts_with($headers['content-type'], 'text/')) {
+        if (isset($headers['content-type'][0]) && \str_starts_with($headers['content-type'][0], 'text/')) {
             return true;
         }
 

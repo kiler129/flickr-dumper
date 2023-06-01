@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 namespace App\Repository\Flickr;
 
+use App\Entity\Flickr\Collection\Gallery;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Entity\Flickr\Photo;
-use App\Entity\Flickr\Photoset;
 use App\Entity\Flickr\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\Query\Expr;
@@ -40,6 +41,10 @@ class UserRepository extends ServiceEntityRepository
                         ' WHERE ps.owner = _u AND ' .
                         '       ps.status.deleted = false' .
                         ') as photoset_count')
+            ->addSelect('(SELECT COUNT(1) FROM ' . Gallery::class . ' gal ' .
+                        ' WHERE gal.owner = _u AND ' .
+                        '       gal.status.deleted = false' .
+                        ') as gallery_count')
             ->addSelect('(SELECT COUNT(1) FROM ' . Photo::class . ' ufp ' .
                         ' JOIN ufp.userFavorites uf ' .
                         ' WHERE uf.owner = _u' .
@@ -54,8 +59,9 @@ class UserRepository extends ServiceEntityRepository
             ->leftJoin('_u.favorites', '_uf', Expr\Join::WITH, '_uf.owner = _u.nsid')
             ->addOrderBy('faves_photos_without_votes', 'DESC')
             ->addOrderBy('faves_count', 'DESC')
-            ->addOrderBy('photo_count', 'DESC')
+            ->addOrderBy('gallery_count', 'DESC')
             ->addOrderBy('photoset_count', 'DESC')
+            ->addOrderBy('photo_count', 'DESC')
         ;
 
         return $qb;

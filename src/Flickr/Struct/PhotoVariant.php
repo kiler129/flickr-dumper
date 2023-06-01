@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Flickr\Struct;
 
 use App\Exception\DomainException;
-use App\Struct\PhotoSize;
+use App\Flickr\Enum\PhotoSize;
 
 /**
  * A basic unique photo version identity

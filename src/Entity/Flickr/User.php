@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Entity\Flickr;
 
+use App\Entity\Flickr\Collection\Gallery;
+use App\Entity\Flickr\Collection\Photoset;
 use App\Exception\LogicException;
 use App\Repository\Flickr\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -34,6 +36,9 @@ class User
     #[ORM\OneToMany(mappedBy: 'owner', targetEntity: Photoset::class, fetch: 'EXTRA_LAZY')]
     private Collection $photosets;
 
+    #[ORM\OneToMany(mappedBy: 'owner', targetEntity: Gallery::class, fetch: 'EXTRA_LAZY')]
+    private Collection $galleries;
+
     #[ORM\OneToOne(targetEntity: UserFavorites::class, mappedBy: 'owner', cascade: ['persist', 'remove'], orphanRemoval: true)]
     //#[ORM\JoinColumn(referencedColumnName: 'owner_id')]
     private ?UserFavorites $favorites = null;
@@ -46,6 +51,7 @@ class User
 
         $this->photos = new ArrayCollection();
         $this->photosets = new ArrayCollection();
+        $this->galleries = new ArrayCollection();
     }
 
     public function getNsid(): string
@@ -113,6 +119,14 @@ class User
     public function getPhotosets(): Collection
     {
         return $this->photosets;
+    }
+
+    /**
+     * @return Collection<int, Gallery>
+     */
+    public function getGalleries(): Collection
+    {
+        return $this->galleries;
     }
 
     public function getFavorites(): ?UserFavorites

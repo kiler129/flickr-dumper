@@ -40,7 +40,7 @@ final readonly class PandaEndpoint
             'page' => $page,
         ];
 
-        $this->validatePaginationValues($page, $perPage);
+        $this->validateRegularPaginationValues($page, $perPage);
         $this->normalizeExtrasToParams($params, $extras);
 
         return $this->client->call('flickr.panda.getPhotos', $params, 'pandas');

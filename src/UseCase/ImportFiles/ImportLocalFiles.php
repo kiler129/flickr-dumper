@@ -8,7 +8,7 @@ use App\Filesystem\StorageProvider;
 use App\Flickr\Client\FlickrApiClient;
 use App\Flickr\ClientEndpoint\PhotosEndpoint;
 use App\Flickr\Factory\ApiClientConfigFactory;
-use App\Flickr\Struct\PhotoDto;
+use App\Flickr\Struct\ApiDto\PhotoDto;
 use App\Flickr\Struct\PhotoVariant;
 use App\Flickr\Url\UrlGenerator;
 use App\Repository\Flickr\PhotoRepository;
@@ -18,7 +18,6 @@ use DateTimeImmutable;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use SplFileInfo;
-use Symfony\Component\DependencyInjection\Container;
 use Symfony\Contracts\Service\ServiceSubscriberInterface;
 use Throwable;
 use function fclose;
@@ -172,7 +171,7 @@ class ImportLocalFiles implements ServiceSubscriberInterface
             $remotePhoto,
             $fileModTime === false ? null : (new DateTimeImmutable())->setTimestamp($fileModTime)
         );
-        $path = $this->getUpdatePhotoFile($file, $localPhoto, $this->copyFilesToStorage);
+        $path = $this->getUpdatePhotoFile($file, $localPhoto);
         $localPhoto
             ->setLocalPath($path)
             ->setFileVersion($variant->size)

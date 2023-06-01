@@ -1,0 +1,75 @@
+{% extends "base.html.twig" %}
+
+{% block pagination %}
+    {{ pagerfanta(pager) }}
+{% endblock %}
+
+{% block content %}
+    {{ block('pagination') }}
+
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Owner</th>
+            <th>Title</th>
+            <th>Last Updated</th>
+            <th>Remote Photos</th>
+            <th>Local Photos</th>
+            <th>Status</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for result in pager %}
+            {# @var gallery \App\Entity\Flickr\Gallery #}
+            {% set gallery = result['gallery'] %}
+            {% set owner = gallery.owner %}
+            {% set photosCount = result['photo_count'] %}
+            {% set photosWithoutVotesCount = result['photos_without_votes'] %}
+
+            <tr>
+                <td>{{ gallery.id }}</td>
+                <td><a href="{{ url('app.user_resources', {'userId': owner.nsid}) }}">{{ owner.userName }}</a></td>
+                <td>{{ gallery.title }}</td>
+                <td>
+                    {% if gallery.dateLastUpdated is not null %}
+                        {{ gallery.dateLastUpdated|date('Y-m-d') }}
+                    {% else %}
+                        <span class="placeholder">Never</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if gallery.remoteStats.photos is not null %}
+                        {{ gallery.remoteStats.photos }}
+                    {% else %}
+                        <span class="placeholder">Unknown</span>
+                    {% endif %}
+
+                </td>
+                <td>
+                        {% if photosCount == 0 %}
+                            <span class="placeholder">None</span>
+                        {% else %}
+                            <a href="{{ url('app.photos_in_gallery', {'userId': owner.nsid, 'galleryId': gallery.id}) }}">{{ photosCount }} photos</a>
+
+                            {% if photosWithoutVotesCount > 0 %}<small>({{ photosWithoutVotesCount }} w/o vote)</small>{% endif %}
+                        {% endif %}
+                </td>
+                <td>
+                    {% if gallery.writeLocked %}
+                        <span title="Write locked">🔏</span>
+                    {% endif %}
+
+                    {% if gallery.syncCompleted %}
+                        <span title="Completed sync at least once">✅</span>
+                    {% else %}
+                        <span title="Never completed a full sync">⚠️</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {{ block('pagination') }}
+{% endblock %}

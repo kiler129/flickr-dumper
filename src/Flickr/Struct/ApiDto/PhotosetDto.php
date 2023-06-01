@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Flickr\Struct;
+namespace App\Flickr\Struct\ApiDto;
 
 /**
  * Simple DTO to map array response from API to a typed object
@@ -21,7 +21,6 @@ namespace App\Flickr\Struct;
  * @property-read int $commentsCount Number of comments for the album
  * @property-read int $photosCount Number of photos in the album
  * @property-read int $videosCount Number of videos in the album
-
  */
 final class PhotosetDto extends BaseDto
 {

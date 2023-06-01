@@ -3,26 +3,15 @@ declare(strict_types=1);
 
 namespace App\UseCase\Sync;
 
-use App\Entity\Flickr\Photoset;
 use App\Entity\Flickr\UserFavorites;
-use App\Flickr\Client\FlickrApiClient;
 use App\Flickr\ClientEndpoint\PhotosetsEndpoint;
-use App\Flickr\Struct\Identity\AlbumIdentity;
+use App\Flickr\Enum\PhotoExtraFields;
+use App\Flickr\Struct\ApiDto\PhotoDto;
 use App\Flickr\Struct\Identity\MediaCollectionIdentity;
 use App\Flickr\Struct\Identity\UserFavesIdentity;
-use App\Flickr\Struct\PhotoDto;
-use App\Flickr\Url\UrlParser;
-use App\Repository\Flickr\PhotoRepository;
-use App\Repository\Flickr\PhotosetRepository;
 use App\Repository\Flickr\UserFavoritesRepository;
-use App\Repository\Flickr\UserRepository;
-use App\Struct\PhotoExtraFields;
-use App\Transformer\PhotoDtoEntityTransformer;
 use App\UseCase\FetchPhotoToDisk;
-use App\UseCase\ResolveOwner;
-use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
-use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Service\ServiceSubscriberInterface;
 
 /**
@@ -44,6 +33,8 @@ final class SyncUserFavoritesStrategy extends SyncCollectionStrategy implements 
      */
     protected function syncSpecificCollection(MediaCollectionIdentity $identity, callable $sink): bool
     {
+        \assert($identity instanceof UserFavesIdentity);
+
         // ***** ACTUALLY IMPORTANT *****
         // DO NOT assume $identity->owner is NSID - it may be, but it can be a screenname. You CANNOT blindly try using
         // it as NSID. You MUST resolve it via API or database. See Flickr\Url\UrlParser for detailed explanation why.
@@ -77,7 +68,7 @@ final class SyncUserFavoritesStrategy extends SyncCollectionStrategy implements 
         }
 
         $collection->setDateSyncCompleted(new \DateTimeImmutable());
-        $this->repo->save($collection);
+        $this->repo->save($collection, true);
 
         return true;
     }

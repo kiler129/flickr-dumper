@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Struct;
+namespace App\Flickr\Enum;
 
 enum ApiError: int
 {

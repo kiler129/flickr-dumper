@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Struct;
 
+/** @deprecated This should be an enum used by the API as well */
 final class PrivacyFilter
 {
     public const PUBLIC_ENTITY          = 1;

@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace App\Flickr\UseCase;
 
 use App\Exception\DomainException;
+use App\Flickr\Enum\PhotoSize;
 use App\Flickr\Struct\PhotoVariant;
 use App\Flickr\Url\UrlParser;
-use App\Struct\PhotoSize;
 
 class ResolvePhotoVariants
 {
