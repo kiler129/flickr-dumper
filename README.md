@@ -24,8 +24,9 @@ However, as of now these two aren't usable.
 ### How do I use it?
 
 In the current state, the tool is in it's "beta" stage intended for the developers, and other more advanced users to 
-test it. It works perfectly and is used to sync 100k+ photos. To use it you need to have PHP 8.2+. No other things are 
-required. To customize location of the database file and photos storage check `.env` file (or use environment variables).
+test it. It works perfectly and is used to sync 100k+ photos for 3+ years. To use it you need to have PHP 8.2+. No other 
+things are required. To customize location of the database file and photos storage check `.env` file (or use environment 
+variables).
 
 
 ### Web interface
