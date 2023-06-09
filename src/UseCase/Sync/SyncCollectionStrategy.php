@@ -98,15 +98,15 @@ abstract class SyncCollectionStrategy
      */
     public int $photoFlushBatchSize = 100;
 
-    protected FlickrApiClient $api;
-    protected LoggerInterface $log;
-    private UserRepository $userRepo;
-    private PhotoRepository $photoRepo;
+    protected FlickrApiClient         $api;
+    protected LoggerInterface         $log;
+    private UserRepository            $userRepo;
+    private PhotoRepository           $photoRepo;
     private PhotoDtoEntityTransformer $photoTransformer;
-    private ResolveOwner $resolveOwner;
-    private UrlParser $urlParser;
-    private EntityManagerInterface $om;
-    private int                    $currentPhotoBatchFill = 0;
+    private ResolveOwner              $resolveOwner;
+    private UrlParser                 $urlParser;
+    private EntityManagerInterface    $om;
+    private int                       $currentPhotoBatchFill = 0;
 
 
     public function __construct(private ContainerInterface $locator)

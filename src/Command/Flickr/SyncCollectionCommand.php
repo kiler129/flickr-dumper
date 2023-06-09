@@ -114,7 +114,7 @@ class SyncCollectionCommand extends Command
              )
              ->addArgument(
                  'collection',
-                 InputArgument::OPTIONAL,
+                 InputArgument::REQUIRED,
                  "URL or ID of $types (ignored for user photostream and faves). When URL isn't used," .
                  " --user-id and --type are required."
              );
@@ -167,7 +167,7 @@ class SyncCollectionCommand extends Command
         $dlUC = ($this->fetchPhotoToDisk)(); //this will always get a new instance
         $dlUC->switchIdentities = $this->switchIdentities;
 
-        //@todo BROKEN console
+        //@todo BRAKS the console - I spent hours trying to fix that...
         //if ($this->setupSectionedOutput($output)) {
         //    $dlUC->onProgress([$this, 'renderStatusProgress']);
         //}

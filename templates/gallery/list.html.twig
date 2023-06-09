@@ -21,7 +21,7 @@
         </thead>
         <tbody>
         {% for result in pager %}
-            {# @var gallery \App\Entity\Flickr\Gallery #}
+            {# @var gallery \App\Entity\Flickr\Collection\Gallery #}
             {% set gallery = result['gallery'] %}
             {% set owner = gallery.owner %}
             {% set photosCount = result['photo_count'] %}
@@ -62,6 +62,8 @@
 
                     {% if gallery.syncCompleted %}
                         <span title="Completed sync at least once">✅</span>
+                        <small>({{ gallery.dateSyncCompleted|date('Y-m-d H:i') }})</small>
+
                     {% else %}
                         <span title="Never completed a full sync">⚠️</span>
                     {% endif %}

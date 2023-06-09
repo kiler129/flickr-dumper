@@ -21,7 +21,7 @@
         </thead>
         <tbody>
         {% for result in pager %}
-            {# @var photoset \App\Entity\Flickr\Photoset #}
+            {# @var photoset \App\Entity\Flickr\Collection\Photoset #}
             {% set photoset = result['photoset'] %}
             {% set owner = photoset.owner %}
             {% set photosCount = result['photo_count'] %}
@@ -62,6 +62,7 @@
 
                     {% if photoset.syncCompleted %}
                         <span title="Completed sync at least once">✅</span>
+                        <small>({{ photoset.dateSyncCompleted|date('Y-m-d H:i') }})</small>
                     {% else %}
                         <span title="Never completed a full sync">⚠️</span>
                     {% endif %}

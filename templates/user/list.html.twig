@@ -15,6 +15,7 @@
                 <th>Identifier</th>
                 <th>Own Photos</th>
                 <th>Albums/photosets</th>
+                <th>Galleries</th>
                 <th>Favorites</th>
             </tr>
         </thead>
@@ -76,6 +77,7 @@
                         {% endif %}
                         {% if user.favorites.syncCompleted %}
                             <span title="Completed sync at least once">✅</span>
+                            <small>({{ user.favorites.dateSyncCompleted|date('Y-m-d H:i') }})</small>
                         {% else %}
                             <span title="Never completed a full sync">⚠️</span>
                         {% endif %}
