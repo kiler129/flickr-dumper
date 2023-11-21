@@ -88,9 +88,15 @@
     |
     <label for="filterBy">Filter by:</label>
     <select id="filterBy">
-        <option disabled selected>Pick to activate</option>
+        {# todo: this should probably support multi-filters #}
+        <option data-filter="{}">Default</option>
         {% for filter in predefinedFilters %}
-            <option data-filter='{{ filter['filter']|json_encode()|raw }}'>{{ filter['name'] }}</option>
+            <option
+                    data-filter='{{ filter['filter']|json_encode()|raw }}'
+                    {% if filter['filter']|filter((value,field) => currentFilters[field] is not defined or currentFilters[field] != value) is empty %}
+                        selected
+                    {% endif %}
+            >{{ filter['name'] }}</option>
         {% endfor %}
     </select>
     |
