@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Struct\View;
 
+use App\Flickr\Enum\SafetyLevel;
+
 readonly final class PhotoPredefinedFilter
 {
     private const FILTERS = [
@@ -23,6 +25,18 @@ readonly final class PhotoPredefinedFilter
             'name' => 'With downvotes',
             'filter' => [
                 'localStats.downVotes' => '!0',
+            ],
+        ],
+        [
+            'name' => 'Only safe',
+            'filter' => [
+                'safetyLevel' => SafetyLevel::SAFE->value
+            ],
+        ],
+        [
+            'name' => 'Only moderate & restricted',
+            'filter' => [
+                'safetyLevel' => '!' . SafetyLevel::SAFE->value
             ],
         ],
     ];
