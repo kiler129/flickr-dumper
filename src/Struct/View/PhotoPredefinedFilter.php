@@ -9,14 +9,14 @@ readonly final class PhotoPredefinedFilter
 {
     private const FILTERS = [
         [
-            'name' => 'No votes',
+            'name' => '🗳️ No votes',
             'filter' => [
                 'localStats.upVotes' => 0,
                 'localStats.downVotes' => 0,
             ],
         ],
         [
-            'name' => 'With upvotes',
+            'name' => '👍 With upvotes',
             'filter' => [
                 'localStats.upVotes' => '!0',
             ],
@@ -34,7 +34,7 @@ readonly final class PhotoPredefinedFilter
             ],
         ],
         [
-            'name' => 'Only moderate & restricted',
+            'name' => '🔞 Only moderate & restricted',
             'filter' => [
                 'safetyLevel' => '!' . SafetyLevel::SAFE->value
             ],
