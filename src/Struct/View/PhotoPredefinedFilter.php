@@ -22,13 +22,33 @@ readonly final class PhotoPredefinedFilter
             ],
         ],
         [
-            'name' => 'With downvotes',
+            'name' => '👀 No local views',
+            'filter' => [
+                'localStats.views' => 0,
+            ],
+        ],
+        [
+            'name' => '👀 With local views',
+            'filter' => [
+                'localStats.views' => '!0',
+            ],
+        ],
+        [
+            'name' => '👎 With downvotes',
             'filter' => [
                 'localStats.downVotes' => '!0',
             ],
         ],
         [
-            'name' => 'Only safe',
+            'name' => '🗳️👀 No votes w/local views',
+            'filter' => [
+                'localStats.upVotes' => 0,
+                'localStats.downVotes' => 0,
+                'localStats.views' => '!0',
+            ],
+        ],
+        [
+            'name' => '🏡 Only safe',
             'filter' => [
                 'safetyLevel' => SafetyLevel::SAFE->value
             ],
