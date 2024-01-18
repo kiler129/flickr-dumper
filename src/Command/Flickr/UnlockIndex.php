@@ -20,7 +20,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'flickr:unlock-index',
-    description: 'Unlocks stuck-locked resources in index',
+    description: 'Unlocks stuck-locked resources in index. Run without options to see locked entities.',
 )]
 class UnlockIndex extends Command
 {
@@ -38,7 +38,8 @@ class UnlockIndex extends Command
 
     protected function configure()
     {
-        $this->addOption('photos', 'p', InputOption::VALUE_NONE, 'Unlocks locked photos')
+        $this->addOption('all', 'A', InputOption::VALUE_NONE, 'Unlocks all entities')
+             ->addOption('photos', 'p', InputOption::VALUE_NONE, 'Unlocks locked photos')
              ->addOption('albums', 'a', InputOption::VALUE_NONE, 'Unlocks locked photosets/albums')
              ->addOption('favorites', 'f', InputOption::VALUE_NONE, 'Unlocks locked user favorites')
              ->addOption('galleries', 'g', InputOption::VALUE_NONE, 'Unlocks locked user galleries')
@@ -48,12 +49,13 @@ class UnlockIndex extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->io = new SymfonyStyle($input, $output);
+        $all = $input->getOption('all');
         $photos = $input->getOption('albums');
         $photosets = $input->getOption('albums');
         $favorites = $input->getOption('favorites');
         $galleries = $input->getOption('galleries');
 
-        if (!($photos || $photosets || $favorites || $galleries)) {
+        if (!($all || $photos || $photosets || $favorites || $galleries)) {
             $this->io->warning('Nothing unlocked - see options');
 
             return Command::FAILURE;
@@ -64,19 +66,19 @@ class UnlockIndex extends Command
             return Command::FAILURE;
         }
 
-        if ($photos) {
+        if ($photos || $all) {
             $this->unlockPhotos();
         }
 
-        if ($photosets) {
+        if ($photosets || $all) {
             $this->unlockPhotosets();
         }
 
-        if ($favorites) {
+        if ($favorites || $all) {
             $this->unlockFavorites();
         }
 
-        if ($galleries) {
+        if ($galleries || $all) {
             $this->unlockGalleries();
         }
 
