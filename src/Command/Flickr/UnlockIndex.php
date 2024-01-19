@@ -132,12 +132,17 @@ class UnlockIndex extends Command
 
         $createRow = fn(object $entity) => [
             'Type' => (new \ReflectionObject($entity))->getShortName(),
-            'ID' => ($entity instanceof UserFavorites) ? 'N/A (favorites)' :
-                $entityLink(
-                $entity->getId(),
-                $entity::class,
-                $entity->getId()
-            ),
+            'ID' => ($entity instanceof UserFavorites)
+                ? $entityLink(
+                    'User ' . $entity->getOwner()->getNsid(),
+                    $entity->getOwner()::class,
+                    $entity->getOwner()->getNsid()
+                )
+                : $entityLink(
+                    $entity->getId(),
+                    $entity::class,
+                    $entity->getId()
+                ),
             'Title' => ($entity instanceof UserFavorites) ? 'N/A' : $entity->getTitle(),
             'Owner' => $entityLink(
                 $entity->getOwner()->getDisplayableShortName(),
@@ -193,7 +198,7 @@ class UnlockIndex extends Command
             $faves->unlockForWrite();
             $this->favesRepo->save($faves);
 
-            $this->io->success(\sprintf('Unlocked user favorites for user NSID=%d', $faves->getOwner()->getNsid()));
+            $this->io->success(\sprintf('Unlocked user favorites for user NSID=%s', $faves->getOwner()->getNsid()));
         }
     }
 
