@@ -82,4 +82,9 @@ trait PhotoCollectionFragment
     {
         return $this->status->writeLockedAt !== null;
     }
+
+    public function getWriteLockTimestamp(): \DateTimeImmutable | null
+    {
+        return $this->status->writeLockedAt;
+    }
 }

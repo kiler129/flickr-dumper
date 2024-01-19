@@ -308,6 +308,12 @@ class Photo
         return $this->status->writeLockedAt !== null;
     }
 
+    public function getWriteLockTimestamp(): \DateTimeImmutable | null
+    {
+        return $this->status->writeLockedAt;
+    }
+
+
     public function isFilesystemInSync(): bool
     {
         return $this->status->filesystemInSync;

@@ -25,6 +25,8 @@ interface PhotoCollection
 
     public function isWriteLocked(): bool;
 
+    public function getWriteLockTimestamp(): \DateTimeImmutable | null;
+
     public function getUserReadableId(): string;
 
     /** @return Photo[]|Collection<Photo> */
