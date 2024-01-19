@@ -34,7 +34,7 @@ trait SyncableFragment
         return $this;
     }
 
-    public function getDateSyncCompleted(): \DateTimeImmutable
+    public function getDateSyncCompleted(): \DateTimeImmutable | null
     {
         return $this->dateSyncCompleted;
     }

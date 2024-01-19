@@ -5,7 +5,7 @@ namespace App\Entity\Flickr;
 
 interface Syncable
 {
-    public function getDateSyncCompleted(): \DateTimeImmutable;
+    public function getDateSyncCompleted(): \DateTimeImmutable | null;
     public function setDateSyncCompleted(?\DateTimeInterface $dateSyncCompleted): self;
     public function isSyncCompleted(): bool;
 }
