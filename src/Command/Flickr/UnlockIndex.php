@@ -50,7 +50,7 @@ class UnlockIndex extends Command
     {
         $this->io = new SymfonyStyle($input, $output);
         $all = $input->getOption('all');
-        $photos = $input->getOption('albums');
+        $photos = $input->getOption('photos');
         $photosets = $input->getOption('albums');
         $favorites = $input->getOption('favorites');
         $galleries = $input->getOption('galleries');
