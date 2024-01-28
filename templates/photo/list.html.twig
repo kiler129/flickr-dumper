@@ -117,8 +117,7 @@
         {% endfor %}
         <button id="filterBy-reset">Reset</button>
     </div>
-
-    <br/><small><strong>Current filter:</strong><code>{{ currentFilters|json_encode }}</code></small>
+    <small><strong>Current filter:</strong><code>{{ currentFilters|json_encode }}</code></small>
 
 
     {{ block('pagination') }}
