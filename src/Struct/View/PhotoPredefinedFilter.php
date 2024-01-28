@@ -9,28 +9,16 @@ readonly final class PhotoPredefinedFilter
 {
     private const FILTERS = [
         [
-            'name' => '🗳️ No votes',
-            'filter' => [
-                'localStats.upVotes' => 0,
-                'localStats.downVotes' => 0,
-            ],
-        ],
-        [
             'name' => '👍 With upvotes',
             'filter' => [
                 'localStats.upVotes' => '!0',
             ],
         ],
         [
-            'name' => '👀 No local views',
+            'name' => '🗳️ No votes',
             'filter' => [
-                'localStats.views' => 0,
-            ],
-        ],
-        [
-            'name' => '👀 With local views',
-            'filter' => [
-                'localStats.views' => '!0',
+                'localStats.upVotes' => 0,
+                'localStats.downVotes' => 0,
             ],
         ],
         [
@@ -39,14 +27,20 @@ readonly final class PhotoPredefinedFilter
                 'localStats.downVotes' => '!0',
             ],
         ],
+
         [
-            'name' => '🗳️👀 No votes w/local views',
+            'name' => '👀 With local views',
             'filter' => [
-                'localStats.upVotes' => 0,
-                'localStats.downVotes' => 0,
                 'localStats.views' => '!0',
             ],
         ],
+        [
+            'name' => '👀 No local views',
+            'filter' => [
+                'localStats.views' => 0,
+            ],
+        ],
+
         [
             'name' => '🏡 Only safe',
             'filter' => [

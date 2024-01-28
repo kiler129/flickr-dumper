@@ -45,27 +45,38 @@
                 window.location.href = url;
             });
 
-            /** FILTER HANDLING **/
-            document.getElementById('filterBy').addEventListener('change', (e) => {
-                const newFilter = JSON.parse(e.target.options[e.target.selectedIndex].dataset.filter);
-                console.log(newFilter)
-
+            const applyFilters = function(newFilter) {
                 const url = new URL(window.location.href);
                 url.searchParams.forEach((value, name, searchParams) => {
                     if (name.startsWith('filters[')) {
                         url.searchParams.delete(name);
                     }
-                })
+                });
 
                 Object.keys(newFilter).forEach(field => {
                     url.searchParams.append('filters[' + field + ']', newFilter[field]);
                 });
 
-                // go to first page (to avoid 404 if you're on e.g. page 54 and new set has 5 pages)
                 url.searchParams.set('page', 1);
-
                 window.location.href = url;
+            };
+
+            document.getElementById('filterBy-reset').addEventListener('click', (e) => {
+                applyFilters({});
             });
+
+            document.querySelectorAll('input[data-filter]')
+                .forEach(el => el.addEventListener('change', (e) => {
+                    const selectedFilters = document.querySelectorAll('input[data-filter]:checked');
+                    let computedFilter = {};
+                    selectedFilters.forEach(filterEl => {
+                        const filterData = JSON.parse(filterEl.dataset.filter);
+                        computedFilter = { ...computedFilter, ...filterData }
+                    });
+                    console.log(computedFilter);
+
+                    applyFilters(computedFilter);
+                }));
         });
     </script>
 {% endblock %}
@@ -76,7 +87,7 @@
 
 {% block content %}
 {#    {{ dump() }}#}
-    <label for="sortOrder">Sort by:</label>
+    <label for="sortOrder"><strong>Sort by:</strong></label>
     <select id="sortOrder">
         {% for field, options in suggestedSort %}
             {% for dir, dirName in options['dir'] %}
@@ -88,22 +99,26 @@
             {% if not loop.last %}<option disabled>- - - -</option>{% endif %}
         {% endfor %}
     </select>
-    |
-    <label for="filterBy">Filter by:</label>
-    <select id="filterBy">
-        {# todo: this should probably support multi-filters #}
-        <option data-filter="{}">Default</option>
+
+    <div id="filerBy">
+        <div class="filterBy-label">Filter by:</div>
         {% for filter in predefinedFilters %}
-            <option
+            <div class="filterBy-option">
+                <input
+                    type="checkbox"
+                    id="filterBy_{{ loop.index }}"
                     data-filter='{{ filter['filter']|json_encode()|raw }}'
                     {% if filter['filter']|filter((value,field) => currentFilters[field] is not defined or currentFilters[field] != value) is empty %}
-                        selected
+                        checked
                     {% endif %}
-            >{{ filter['name'] }}</option>
+                />
+                <label for="filterBy_{{ loop.index }}">{{ filter['name'] }}</label>
+            </div>
         {% endfor %}
-    </select>
-    |
-    Current filter: <small><code>{{ currentFilters|json_encode }}</code></small>
+        <button id="filterBy-reset">Reset</button>
+    </div>
+
+    <br/><small><strong>Current filter:</strong><code>{{ currentFilters|json_encode }}</code></small>
 
 
     {{ block('pagination') }}

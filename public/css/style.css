@@ -289,6 +289,24 @@ tbody tr:hover {
     color: red;
 }
 
+/* Styling for filters */
+#filerBy > div {
+    display: inline-block;
+}
+#filerBy .filterBy-label {
+    margin-right: 0.5em;
+    font-weight: bold;
+}
+#filerBy .filterBy-option {
+    border-right: 1px dotted rgba(255, 255, 255, 0.18);
+    padding-right: 0.5em;
+}
+#filerBy .filterBy-option:last-child {
+    border-right: none;
+}
+
+
+
 footer {
     font-size: small;
     border-top: 1px gray;
