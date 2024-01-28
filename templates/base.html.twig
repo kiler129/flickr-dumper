@@ -4,7 +4,9 @@
     {% block head %}
         <link rel="stylesheet" href="/css/style.css"/>
         <title>{%- block title -%}
-                {%- if extra['breadcrumbs'] is defined -%}
+                {%- if extra['page_title'] is defined -%}
+                    {{ extra['page_title'] }}
+                {%- elseif extra['breadcrumbs'] is defined -%}
                     {{ extra['breadcrumbs']|last.title }}
                 {%- else -%}
                     Untitled Page

@@ -75,7 +75,10 @@ class PhotoListController extends AbstractController
                 $orderBy,
                 $orderDir
             ),
-            ['breadcrumbs' => $this->breadcrumbsUC->forAlbum($user, $album)]
+            [
+                'page_title' => \sprintf('%s album', $album->getTitle() ?? 'Unnamed'),
+                'breadcrumbs' => $this->breadcrumbsUC->forAlbum($user, $album)
+            ]
         );
     }
 
@@ -104,7 +107,10 @@ class PhotoListController extends AbstractController
                 $orderBy,
                 $orderDir
             ),
-            ['breadcrumbs' => $this->breadcrumbsUC->forGallery($user, $gallery)]
+            [
+                'page_title' => \sprintf('%s gallery', $gallery->getTitle() ?? 'Unnamed'),
+                'breadcrumbs' => $this->breadcrumbsUC->forGallery($user, $gallery),
+            ]
         );
     }
 
@@ -118,7 +124,10 @@ class PhotoListController extends AbstractController
                 $orderBy,
                 $orderDir
             ),
-            ['breadcrumbs' => $this->breadcrumbsUC->forUserPhotos($user)]
+            [
+                'page_title' => \sprintf('%s photos', $user->getDisplayableShortName()),
+                'breadcrumbs' => $this->breadcrumbsUC->forUserPhotos($user)
+            ]
         );
     }
 
@@ -136,7 +145,10 @@ class PhotoListController extends AbstractController
                 $orderBy,
                 $orderDir
             ),
-            ['breadcrumbs' => $this->breadcrumbsUC->forUserFavorites($user)]
+            [
+                'page_title' => \sprintf('%s favorites', $user->getDisplayableShortName()),
+                'breadcrumbs' => $this->breadcrumbsUC->forUserFavorites($user),
+            ]
         );
     }
 

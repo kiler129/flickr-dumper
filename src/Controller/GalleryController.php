@@ -67,7 +67,13 @@ final class GalleryController extends AbstractController
 
         return $this->render(
             'gallery/list.html.twig',
-            ['pager' => $pagerfanta, 'extra' => ['breadcrumbs' => $this->breadcrumbsUC->forUserGalleriesList($user)]]
+            [
+                'pager' => $pagerfanta,
+                'extra' => [
+                    'page_title' => \sprintf('%s galleries', $user->getDisplayableShortName()),
+                    'breadcrumbs' => $this->breadcrumbsUC->forUserGalleriesList($user),
+                ]
+            ]
         );
     }
 }

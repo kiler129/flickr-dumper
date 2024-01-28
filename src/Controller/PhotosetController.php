@@ -65,7 +65,13 @@ final class PhotosetController extends AbstractController
 
         return $this->render(
             'album/list.html.twig',
-            ['pager' => $pagerfanta, 'extra' => ['breadcrumbs' => $this->breadcrumbsUC->forUserAlbumsList($user)]]
+            [
+                'pager' => $pagerfanta,
+                'extra' => [
+                    'page_title' => \sprintf('%s albums', $user->getDisplayableShortName()),
+                    'breadcrumbs' => $this->breadcrumbsUC->forUserAlbumsList($user),
+                ]
+            ]
         );
     }
 }
