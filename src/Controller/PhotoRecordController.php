@@ -5,8 +5,7 @@ namespace App\Controller;
 
 use App\Entity\Flickr\Photo;
 use App\Repository\Flickr\PhotoRepository;
-use Spatie\Image\Enums\ImageDriver;
-use Spatie\Image\Image;
+use App\UseCase\GetThumbnail;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -33,22 +32,18 @@ class PhotoRecordController extends AbstractController
     }
 
     #[Route('/photo/thumbnail/{photoId}', methods: ['GET'], name: 'app.photo_thumb_bin')]
-    public function thumbnail(#[MapEntity(mapping: ['photoId' => 'id'])] Photo $photo): Response
+    public function thumbnail(
+        Request $request,
+        #[MapEntity(mapping: ['photoId' => 'id'])] Photo $photo,
+        GetThumbnail $thumbnailUC
+    ): Response
     {
-        $localPath = $photo->getLocalPath();
-        $thumbPath  = $localPath . '.thumb';
-
-        if (!\file_exists($thumbPath)) {
-            Image::useImageDriver(ImageDriver::Gd)
-                 ->loadFile($localPath)
-                 ->width(1024)
-                 ->height(1024)
-                 ->quality(70)
-                 ->format('jpg')
-                 ->save($thumbPath);
-        }
-
-        return new BinaryFileResponse($thumbPath, public: false, autoEtag: true, autoLastModified: true);
+        return new BinaryFileResponse(
+                              $thumbnailUC->getThumbnailForPhoto($photo, $request->query->has('refresh')),
+            public:           false,
+            autoEtag:         true,
+            autoLastModified: true
+        );
     }
 
     #[Route('/photo/modify/{photoId}/up', methods: ['POST'], name: 'app.photo_vote_up')]

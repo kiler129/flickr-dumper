@@ -36,6 +36,9 @@
         "symfony/stopwatch": "7.0.*",
         "symfony/web-profiler-bundle": "7.0.*"
     },
+    "recommended": {
+        "ext-exif": "Auto-rotate thumbnails"
+    },
     "config": {
         "optimize-autoloader": true,
         "preferred-install": {
