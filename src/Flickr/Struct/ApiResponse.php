@@ -19,6 +19,11 @@ readonly final class ApiResponse
         return isset($this->data['stat']) && $this->data['stat'] === 'ok';
     }
 
+    public function getError(): ?ApiCallException
+    {
+        return $this->isSuccessful() ? null : $this->createApiError();
+    }
+
     public function getContent(): array
     {
         if (!$this->isSuccessful()) {

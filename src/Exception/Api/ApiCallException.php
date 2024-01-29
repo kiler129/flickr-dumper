@@ -40,4 +40,9 @@ class ApiCallException extends \DomainException
     {
         return $this->data;
     }
+
+    public function __toString()
+    {
+        return \sprintf('%s: %s', (new \ReflectionClass(self::class))->getShortName(), $this->getMessage());
+    }
 }

@@ -87,7 +87,10 @@ class ResolveOwner
         //Even thou DTO didn't have enough data to create the user, if it has NSID or path alias (aka screen name)
         // it can be easily retrieved from API
         if ($photoHasNsid) {
-            return $this->lookupUserByNSID($photoDto->ownerNsid);
+            $apiNsidUser = $this->lookupUserByNSID($photoDto->ownerNsid);
+            if ($apiNsidUser !== null) {
+                return $apiNsidUser;
+            }
         }
 
         if ($photoHasScreenName) {
@@ -97,6 +100,17 @@ class ResolveOwner
         if ($photoHasUserName) {
             throw new \Exception('Not Implemented Scenario');
             //TODO: https://www.flickr.com/services/api/explore/flickr.people.findByUsername
+        }
+
+        if ($photoHasNsid) { //this can happen if lookup by NSID failed
+            $this->log->error(
+                'Exhausted user lookup methods for photo={phid} with user nsid={nsid} - creating a shell from NSID',
+                ['phid' => $photoDto->id, 'nsid' => $photoDto->ownerNsid]
+            );
+
+            $user = new User($photoDto->ownerNsid, 'Dummy NSID=' . $photoDto->ownerNsid);
+            $this->userRepo->save($user, true);
+            return $user;
         }
 
         throw new DomainException(
@@ -206,9 +220,12 @@ class ResolveOwner
         }
 
         $lookup = $this->apiClient->getPeople()->lookupUser($nsid);
-        if (!$lookup->isSuccessful()) {
-            $this->log->error('Failed to load user NSID={nsid} from API', ['nsid' => $nsid]);
-            dd($lookup);
+        $error = $lookup->getError();
+        if ($error !== null) {
+            //This can happen e.g. when the user has been deleted on the Flickr side or when the request failed.
+            //This is a bit weird, as sometimes Flickr returns photos with some user, photos exist, but the user for
+            // them does not?! Who knows... ;)
+            $this->log->error('Failed to load user NSID={nsid} from API.', ['nsid' => $nsid, 'exception' => $error]);
             return null;
         }
 
