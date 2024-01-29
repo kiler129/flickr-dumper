@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Entity\Flickr\Photo;
-use App\Exception\LogicException;
 use App\Repository\Flickr\PhotoRepository;
+use Spatie\Image\Enums\ImageDriver;
 use Spatie\Image\Image;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -39,10 +39,12 @@ class PhotoRecordController extends AbstractController
         $thumbPath  = $localPath . '.thumb';
 
         if (!\file_exists($thumbPath)) {
-            Image::load($localPath)
+            Image::useImageDriver(ImageDriver::Gd)
+                 ->loadFile($localPath)
                  ->width(1024)
                  ->height(1024)
                  ->quality(70)
+                 ->format('jpg')
                  ->save($thumbPath);
         }
 
