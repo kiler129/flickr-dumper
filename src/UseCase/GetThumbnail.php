@@ -51,7 +51,11 @@ class GetThumbnail
             return;
         }
 
-        $exif = \exif_read_data($photo->getLocalPath());
+        $exif = @\exif_read_data($photo->getLocalPath());
+        if ($exif === false) {
+            return; //broken or non-existent exif
+        }
+
         switch ($exif['Orientation'] ?? 1) { //1 is normal
             case 2:
                 $image->flip(FlipDirection::Horizontal);
